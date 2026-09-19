@@ -1,0 +1,20 @@
+# Supabase
+.env
+.env.*
+!.env.example
+
+# Local/editor
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build/cache
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# Local tooling
+.vercel/
