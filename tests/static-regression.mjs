@@ -20,8 +20,10 @@ for(const file of ['login/index.html','perfil/index.html','professor/index.html'
 const repoText=[...htmlFiles.map(read),...readdirSync(new URL('public/',root)).filter(name=>/\.(js|css|txt|xml|svg)$/.test(name)).map(name=>read('public/'+name))].join('\n');
 check(!/service_role|sb_secret_|JWT_SECRET|SUPABASE_DB_PASSWORD/.test(repoText),'Possível segredo encontrado no frontend');
 check(!repoText.includes('Receitas-INF1A-02'),'Referência antiga encontrada');
-check(read('public/sitemap.xml').includes('/Receitas-INF1A/grupo-6/'),'Sitemap incompleto');
-check(!/login|perfil|professor/.test(read('public/sitemap.xml')),'Sitemap contém rota privada');
+check(read('sitemap.xml').includes('/Receitas-INF1A/grupo-6/'),'Sitemap da raiz incompleto');
+check(!/login|perfil|professor/.test(read('sitemap.xml')),'Sitemap da raiz contém rota privada');
+check(read('robots.txt').includes('/Receitas-INF1A/sitemap.xml'),'Robots da raiz não aponta para o sitemap canônico');
+check(read('robots.txt').includes('/Receitas-INF1A/professor/'),'Robots da raiz não restringe rotas administrativas');
 
 if(failures.length){console.error(failures.join('\n'));process.exit(1)}
 console.log(`PASS: ${htmlFiles.length} páginas e metadados estáticos validados.`);
