@@ -3,4 +3,4 @@ Allow: /
 Disallow: /login/
 Disallow: /perfil/
 Disallow: /professor/
-Sitemap: https://guilherme-augusto-inf.github.io/Receitas-INF1A/public/sitemap.xml
+Sitemap: https://guilherme-augusto-inf.github.io/Receitas-INF1A-02/public/sitemap.xml
