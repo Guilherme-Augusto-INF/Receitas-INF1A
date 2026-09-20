@@ -1,75 +1,79 @@
-# Receitas-INF1A-02
+# Receitas-INF1A
 
-Versão aprimorada do site da atividade prática de Biologia da turma INF1A, baseada no `Receitas-INF1A` e preparada para uso real durante a aula.
+Site da atividade prática de Biologia da turma INF1A. A aplicação é estática (HTML, CSS e JavaScript), usa Supabase para autenticação e dados e é publicada pelo GitHub Pages.
 
-## Recursos
+## Produção
 
-### Para alunos
-- Escolha rápida do grupo.
-- Visualização dos integrantes por número de chamada.
-- Edição das receitas somente quando permitida.
-- Perfil com nome, número, função e grupo.
-- Avisos do professor.
-- Atualização em tempo real de avisos, status, grupos e receitas quando a página está aberta.
-- Indicador de atividade finalizada/bloqueada.
-- Interface responsiva para celular.
-- Tema claro/escuro.
-- Relógio padrão de Brasília/São Paulo (`America/Sao_Paulo`).
+- Site: <https://guilherme-augusto-inf.github.io/Receitas-INF1A/>
+- Repositório: <https://github.com/Guilherme-Augusto-INF/Receitas-INF1A>
+- Supabase: projeto `Atividade de Biologia - Grupos` (`fbniifpkiyafpuhpnbll`)
+- Branch publicada: `main`
 
-### Para o professor
-- Dashboard de modo aula.
-- Visão dos 6 grupos em uma única tela.
-- Contagem de grupos por status.
-- Status: não iniciado, em andamento, em revisão e finalizado.
-- Relógio padrão de Brasília/São Paulo.
-- Publicação e limpeza de avisos para toda a turma.
-- Organização de alunos por grupo e número de chamada.
-- Regra de unicidade do número de chamada dentro de cada grupo.
-- Criação de grupos.
-- Upload de foto do trabalho para cada grupo.
-- Histórico das alterações do grupo.
-- Finalização que bloqueia as receitas do grupo.
-- Reabertura de edição pelo professor.
-- Exclusão de contas de alunos.
+O `vercel.json` foi mantido apenas como compatibilidade histórica. Vercel não é o ambiente principal deste projeto.
 
-### Segurança e banco
-- RLS habilitado nas tabelas da aplicação.
-- Funções privilegiadas com verificação de papel do usuário.
-- Funções de trigger sem acesso RPC público.
-- RPCs administrativos sem execução para `anon`.
-- Sessões anônimas impedidas de executar operações de escrita da sala.
-- Histórico de atividade com RLS.
-- Storage separado para fotos dos trabalhos.
-- Receitas finalizadas não podem ser alteradas pelo fluxo de edição.
-- Índices para chaves estrangeiras e consultas frequentes.
-- Restrições de integridade para número de chamada e campos essenciais das receitas.
-- Realtime habilitado para `groups`, `recipes`, `classroom_settings` e `profiles`.
+## O que o sistema faz
 
-## Efeitos visuais
+### Alunos
 
-- Identidade visual inspirada em Biologia.
-- Barra de progresso da rolagem.
-- Elementos com entrada suave conforme aparecem na tela.
-- Hover e profundidade nos cards.
-- Fundo com detalhes orgânicos sutis.
-- Animação decorativa do DNA.
-- Suporte a `prefers-reduced-motion`.
-- Layout responsivo para celular e desktop.
+- Consultam os seis grupos, temas, status e quantidade de receitas.
+- Visualizam receitas publicamente.
+- Após login, veem os integrantes do próprio grupo.
+- Editam o próprio nome e número de chamada.
+- Criam e editam múltiplas receitas apenas no próprio grupo.
+- Não alteram receitas quando o grupo está finalizado.
 
-## Banco de dados
+### Professor
 
-As mudanças de aula e hardening estão organizadas em migrations versionadas no diretório `supabase/migrations/`. As migrations mais recentes adicionam ferramentas da sala, endurecimento de permissões/RLS, índices, integridade de dados e Realtime.
+- Acompanha todos os grupos e status.
+- Publica ou remove avisos.
+- Organiza alunos e professores por grupo e número.
+- Altera papéis por uma RPC administrativa validada no servidor.
+- Revisa, bloqueia, reabre e exclui receitas.
+- Finaliza ou reabre grupos.
+- Envia fotos JPG, PNG ou WebP de até 5 MiB.
+- Exclui contas de alunos com confirmação; não pode excluir a própria conta nem outra conta de professor.
 
-O banco em produção utilizado pelo projeto é o Supabase `Atividade de Biologia - Grupos`.
+### Acesso anônimo
 
-## Segurança pendente no painel do Supabase
+O acesso anônimo é somente para consulta. Ele não pode editar perfil, receitas, status, avisos, fotos ou contas e não aparece na lista do professor.
 
-O Security Advisor ainda sinaliza **Leaked Password Protection** desativado. Essa configuração é de Auth e precisa ser habilitada no painel do Supabase; ela não é controlada pelo código do site.
+## Estrutura
 
-Também existem avisos do Advisor sobre funções `SECURITY DEFINER` que precisam continuar acessíveis a usuários autenticados para que as operações administrativas funcionem. Essas funções fazem validação de papel antes de executar operações privilegiadas.
+- `index.html`: home e progresso da turma.
+- `grupo-1/` a `grupo-6/`: páginas dos grupos usando o comportamento compartilhado de `public/group.js`.
+- `login/`, `perfil/`, `professor/`: autenticação, perfil e painel.
+- `public/`: estilos, scripts compartilhados, metadados e QR Codes.
+- `supabase/migrations/`: migrations versionadas; migrations aplicadas não devem ser reescritas.
+- `tests/static-regression.mjs`: verificações estáticas reproduzíveis.
 
-## Publicação
+## Segurança
 
-O projeto é estático e pode ser publicado pelo GitHub Pages usando a branch `main`.
+- O frontend contém somente a chave pública `publishable` do Supabase.
+- RLS está ativo em todas as tabelas públicas da aplicação.
+- RPCs `SECURITY DEFINER` revogam `PUBLIC`/`anon` quando a operação exige login e validam `auth.uid()`, papel, anonimato, grupo e alvo internamente.
+- Atualizações de perfil usam RPCs com campos permitidos; `authenticated` não possui `UPDATE` direto em `profiles`.
+- Finalização é imposta por função e trigger no banco, não apenas pela interface.
+- O bucket público de fotos limita tamanho e MIME; somente professores autenticados podem escrever.
+- Dados dinâmicos são escapados ou inseridos com `textContent`.
+- `@supabase/supabase-js` está fixado em `2.116.0` com SRI.
+- GitHub Pages não permite configurar livremente headers HTTP. O projeto usa CSP por `<meta>` e `Referrer-Policy` por meta; `frame-ancestors`, `X-Content-Type-Options` e `Permissions-Policy` continuam limitados pelo host.
 
-`https://guilherme-augusto-inf.github.io/Receitas-INF1A-02/`
+O Security Advisor ainda informa que **Leaked Password Protection** está desativado. Essa opção precisa ser habilitada nas configurações de Auth do projeto e não é controlável pelas migrations usadas aqui.
+
+## Realtime
+
+As tabelas `groups`, `recipes`, `classroom_settings` e `profiles` estão na publicação `supabase_realtime`. O frontend mantém um único canal por página e atualiza home, avisos e páginas de grupo conforme o recurso alterado.
+
+## Testes locais
+
+```bash
+node tests/static-regression.mjs
+for file in public/*.js tests/*.mjs; do node --check "$file"; done
+npx html-validate index.html 404.html login/index.html perfil/index.html professor/index.html grupo-*/index.html
+```
+
+O QR Code canônico está disponível em `public/qr-code.svg` e `public/qr-code.png` e codifica a URL de produção acima.
+
+## Auditoria V3
+
+O inventário, os achados, a matriz de permissões, os testes negativos e a avaliação de prontidão estão em [`AUDIT-V3.md`](AUDIT-V3.md).
