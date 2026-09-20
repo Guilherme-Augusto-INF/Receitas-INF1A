@@ -1,1 +1,58 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atividade de Biologia — INF1A</title><meta name="description" content="Atividade prática de Biologia da turma INF1A."><meta property="og:title" content="Atividade Prática de Biologia — INF1A"><meta property="og:description" content="Consulte os grupos e acompanhe a atividade prática de Biologia."><meta property="og:type" content="website"><meta property="og:image" content="https://guilherme-augusto-inf.github.io/Receitas-INF1A-02/public/og.svg"><link rel="icon" href="public/favicon.svg"><link rel="stylesheet" href="public/styles.css?v=5"></head><body><header class="top"><a href="./">🧬 Biologia — INF1A</a><span id="nav"></span><span class="clock-inline">🇧🇷 <span data-brasilia-clock>--:--:--</span></span></header><main class="wrap"><section class="hero panel reveal is-visible"><div><p class="muted">ATIVIDADE PRÁTICA • INF1A</p><h1>Atividade Prática de Biologia</h1><p class="hero-copy">Entre no seu grupo, acompanhe o trabalho e registre o resultado da atividade.</p></div><div class="hero-dna" aria-hidden="true">🧬</div></section><div id="account"></div><div id="class-announcement"></div><section class="panel reveal"><div class="section-head"><div><p class="muted">ACOMPANHAMENTO EM TEMPO REAL</p><h2>Como está a turma?</h2></div><span id="last-update" class="muted">Atualizando...</span></div><div id="class-progress" class="class-progress-grid"></div></section><section><div class="section-head"><div><p class="muted">SEU GRUPO</p><h2>Escolha um grupo</h2></div><span class="muted">Os status são atualizados automaticamente.</span></div><section id="groups" class="grid"><div class="panel">⏳ Carregando grupos...</div></section></section></main><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="public/supabase.js?v=5"></script><script src="public/auth.js?v=5"></script><script src="public/theme.js?v=5"></script><script src="public/effects.js?v=5"></script><script src="public/classroom.js?v=2"></script><script>(async()=>{const nav=document.querySelector('#nav'),groups=document.querySelector('#groups'),account=document.querySelector('#account'),progress=document.querySelector('#class-progress'),last=document.querySelector('#last-update');const labels={not_started:['⚪','Não iniciado'],in_progress:['🔵','Em andamento'],review:['🟡','Em revisão'],completed:['🟢','Finalizado']};let liveBusy=false;const render=async()=>{if(liveBusy)return;liveBusy=true;const r=await sb.rpc('get_group_overview');liveBusy=false;if(r.error){groups.innerHTML='<div class="panel error">Erro ao carregar grupos: '+String(r.error.message).replace(/[<>]/g,'')+'</div>';progress.innerHTML='<p class="muted">O acompanhamento ainda não está disponível.</p>';return}const data=r.data||[],counts={not_started:0,in_progress:0,review:0,completed:0};data.forEach(g=>counts[g.activity_status]=(counts[g.activity_status]||0)+1);progress.innerHTML=Object.entries(labels).map(([k,v])=>'<div class="progress-item"><span>'+v[0]+'</span><strong>'+counts[k]+'</strong><small>'+v[1]+'</small></div>').join('');groups.innerHTML=data.map((g,i)=>'<article class="card reveal" style="--reveal-delay:'+(i*80)+'ms">'+(g.photo_url?'<img class="group-cover" src="'+String(g.photo_url).replace(/"/g,'&quot;')+'" alt="Foto do grupo">':'<div class="group-cover placeholder">🧬</div>')+'<p class="muted">'+String(g.slug).replace('-',' ').toUpperCase()+'</p><div class="section-head"><h2>'+String(g.name).replace(/^Grupo \d+ — /,'')+'</h2><span class="status-pill status-'+g.activity_status+'">'+labels[g.activity_status][0]+' '+labels[g.activity_status][1]+'</span></div><p class="muted">'+String(g.description||'Tema da atividade').replace(/[<>]/g,'')+'</p><div class="mini-stats"><span>👥 '+g.member_count+'</span><span>📝 '+g.recipe_count+'</span></div><a class="btn" href="'+encodeURI(g.slug)+'/">Abrir grupo</a></article>').join('')||'<div class="panel">Nenhum grupo cadastrado.</div>';last.textContent='Atualizado às '+new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date());if(window.BioEffects)window.BioEffects.observe()};const me=await BioAuth.profile();if(me.user){nav.innerHTML='<a class="btn" href="perfil/">Perfil</a>'+(me.profile?.role==='teacher'?' <a class="btn" href="professor/">Painel</a>':'')+' <button class="btn secondary" id="logout">Sair</button>';document.querySelector('#logout').onclick=()=>BioAuth.signOut();if(me.profile?.is_anonymous&&!me.profile.group_id)account.innerHTML='<p class="status reveal is-visible">Conta anônima criada. O professor precisa organizar seu grupo antes da edição.</p>'}else nav.innerHTML='<a class="btn" href="login/">Entrar</a>';await render();document.addEventListener('classroom:changed',()=>render());})();</script></body></html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Grupos, integrantes, receitas e andamento da atividade prática de Biologia da turma INF1A.">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#176b4d">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://fbniifpkiyafpuhpnbll.supabase.co; connect-src 'self' https://fbniifpkiyafpuhpnbll.supabase.co wss://fbniifpkiyafpuhpnbll.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+  <meta property="og:title" content="Atividade Prática de Biologia — INF1A">
+  <meta property="og:description" content="Consulte os grupos e acompanhe a atividade prática de Biologia.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://guilherme-augusto-inf.github.io/Receitas-INF1A/">
+  <meta property="og:image" content="https://guilherme-augusto-inf.github.io/Receitas-INF1A/public/og.svg">
+  <link rel="canonical" href="https://guilherme-augusto-inf.github.io/Receitas-INF1A/">
+  <link rel="icon" href="public/favicon.svg">
+  <link rel="stylesheet" href="public/styles.css?v=3.0.0">
+  <title>Atividade de Biologia — INF1A</title>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./"><span aria-hidden="true">🧬</span> Biologia — INF1A</a>
+    <span class="clock-inline"><span aria-hidden="true">🇧🇷</span> <span data-brasilia-clock>--:--:--</span></span>
+    <nav id="nav" class="top-actions" aria-label="Conta"><span class="muted">Carregando conta…</span></nav>
+  </header>
+  <main class="wrap">
+    <section class="hero panel reveal is-visible">
+      <p class="eyebrow">ATIVIDADE PRÁTICA • INF1A</p>
+      <h1>Atividade Prática de Biologia</h1>
+      <p class="hero-copy">Consulte seu grupo, veja as receitas e acompanhe o andamento da turma.</p>
+    </section>
+    <div id="account"></div>
+    <div id="class-announcement"></div>
+    <section class="panel reveal">
+      <div class="section-head">
+        <div><p class="eyebrow">PROGRESSO DA TURMA</p><h2>Como está a atividade?</h2></div>
+        <span id="last-update" class="muted" aria-live="polite">Atualizando…</span>
+      </div>
+      <div id="class-progress" class="class-progress-grid"><p class="muted">Carregando progresso…</p></div>
+    </section>
+    <section aria-labelledby="groups-title">
+      <div class="section-head section-intro">
+        <div><p class="eyebrow">GRUPOS</p><h2 id="groups-title">Encontre seu grupo</h2></div>
+        <span class="muted">Os status atualizam automaticamente.</span>
+      </div>
+      <div id="groups" class="grid" aria-live="polite"><div class="panel loading-state">Carregando grupos…</div></div>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0" integrity="sha384-JBR+x8blGwjDRO63aHCGiZMD4VNiTR4ZUGA+N6ZKLf3zNt1fK8IBpcgPaMrxqWBp" crossorigin="anonymous"></script>
+  <script src="public/supabase.js?v=3.0.0"></script>
+  <script src="public/ui.js?v=3.0.0"></script>
+  <script src="public/auth.js?v=3.0.0"></script>
+  <script src="public/theme.js?v=3.0.0"></script>
+  <script src="public/effects.js?v=3.0.0"></script>
+  <script src="public/classroom.js?v=3.0.0"></script>
+  <script src="public/home.js?v=3.0.0"></script>
+</body>
+</html>

@@ -1,1 +1,50 @@
-(()=>{const root=document.querySelector('#profile-app');if(!root)return;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const msg=(text,ok=false)=>{const el=document.querySelector('#msg');if(el){el.textContent=text;el.style.color=ok?'var(--primary)':''}};async function load(){root.innerHTML='<section class="panel"><p>⏳ Carregando perfil...</p></section>';const me=await BioAuth.profile();if(!me.user){location.href='../login/';return}if(me.error||!me.profile){root.innerHTML='<section class="panel error"><strong>Não foi possível carregar seu perfil.</strong><p>'+esc(me.error?.message||'Seu perfil ainda não foi criado no banco de dados.')+'</p><button class="btn" id="retry">Tentar novamente</button></section>';document.querySelector('#retry').onclick=load;return}let group=null;if(me.profile.group_id){const g=await sb.from('groups').select('name,slug').eq('id',me.profile.group_id).maybeSingle();if(!g.error)group=g.data}const p=me.profile;const email=me.user.email||'Conta anônima';root.innerHTML='<section class="panel reveal is-visible"><p class="muted">MINHA CONTA</p><h2>Dados da conta</h2><div class="field"><label>Nome completo</label><input id="name" autocomplete="name" value="'+esc(p.full_name||'')+'" placeholder="Seu nome completo"></div><div class="field"><label>Número da chamada</label><input id="call" type="number" min="1" max="999" inputmode="numeric" value="'+(p.call_number??'')+'" placeholder="Ex.: 12"><small class="muted">Se o professor ainda não definiu seu número, você pode deixar vazio.</small></div><div class="field"><label>E-mail</label><input readonly value="'+esc(email)+'"></div><div class="field"><label>Função</label><p><span class="badge">'+(p.role==='teacher'?'Professor':'Aluno')+'</span></p></div><div class="field"><label>Grupo</label><input readonly value="'+esc(group?.name||'Ainda não organizado')+'">'+(group?.slug?'<p><a class="btn secondary" href="../'+encodeURIComponent(group.slug)+'/">Abrir meu grupo</a></p>':'')+'</div>'+(p.is_anonymous&&!p.group_id?'<p class="note">Sua conta anônima ainda não foi organizada pelo professor. Você já pode consultar o conteúdo público.</p>':'')+'<button id="save" class="btn">Salvar alterações</button><p id="msg" class="muted" role="status"></p><div class="logout-wrap"><button id="logout" class="btn danger">Sair da conta</button></div></section>';document.querySelector('#save').onclick=async()=>{const b=document.querySelector('#save'),name=document.querySelector('#name').value.trim(),raw=document.querySelector('#call').value.trim(),call=raw?Number(raw):null;if(!name){msg('Digite seu nome.');return}if(call!==null&&(!Number.isInteger(call)||call<1||call>999)){msg('Digite um número de chamada entre 1 e 999.');return}b.disabled=true;b.textContent='Salvando...';msg('Salvando...');try{const payload={full_name:name,call_number:call};const r=await sb.from('profiles').update(payload).eq('id',me.user.id).select('id,full_name,role,group_id,is_anonymous,call_number').maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error('Seu banco não permitiu atualizar o próprio perfil. Verifique as políticas RLS da tabela profiles.');msg('Alterações salvas com sucesso.',true);b.textContent='Salvo ✓';setTimeout(()=>{b.disabled=false;b.textContent='Salvar alterações'},1200)}catch(e){console.error(e);msg('Não foi possível salvar: '+e.message);b.disabled=false;b.textContent='Salvar alterações'}};document.querySelector('#logout').onclick=()=>BioAuth.signOut()}load()})();
+(()=>{
+  const root=document.querySelector('#profile-app');
+  if(!root)return;
+  const esc=BioUI.escape;
+  async function load(){
+    root.innerHTML='<section class="panel loading-state">Carregando perfil…</section>';
+    const me=await BioAuth.profile();
+    if(!me.user){location.href='../login/';return}
+    if(me.error||!me.profile){
+      root.innerHTML='<section class="panel error-state"><strong>Não foi possível carregar seu perfil.</strong><p>'+esc(BioUI.friendlyError(me.error,'Seu perfil ainda não está disponível.'))+'</p><button class="btn" id="retry">Tentar novamente</button></section>';
+      document.querySelector('#retry')?.addEventListener('click',load);return;
+    }
+    let group=null;
+    if(me.profile.group_id){
+      try{
+        const result=await BioUI.withTimeout(sb.from('groups').select('name,slug').eq('id',me.profile.group_id).maybeSingle());
+        if(!result.error)group=result.data;
+      }catch{}
+    }
+    const profile=me.profile;
+    const editable=!profile.is_anonymous;
+    root.innerHTML=`<section class="panel reveal is-visible"><p class="eyebrow">MINHA CONTA</p><h2>Dados do perfil</h2>
+      ${profile.is_anonymous?'<div class="note"><strong>Acesso anônimo</strong><p>Esta conta serve apenas para consulta e não aparece na organização da turma.</p></div>':''}
+      <div class="field"><label for="name">Nome completo</label><input id="name" autocomplete="name" maxlength="120" value="${esc(profile.full_name||'')}" placeholder="Seu nome completo" ${editable?'':'readonly'}></div>
+      <div class="field"><label for="call">Número da chamada</label><input id="call" type="number" min="1" max="999" inputmode="numeric" value="${profile.call_number??''}" placeholder="Ex.: 12" ${editable?'':'readonly'}><small class="muted">O número precisa ser único dentro do seu grupo.</small></div>
+      <div class="field"><label for="account-email">E-mail</label><input id="account-email" readonly value="${esc(me.user.email||'Conta anônima')}"></div>
+      <dl class="profile-summary"><div><dt>Função</dt><dd>${profile.role==='teacher'?'Professor':'Aluno'}</dd></div><div><dt>Grupo</dt><dd>${esc(group?.name||'Ainda não organizado')}</dd></div></dl>
+      ${group?.slug?`<p><a class="btn secondary" href="../${encodeURIComponent(group.slug)}/">Abrir meu grupo</a></p>`:''}
+      ${editable?'<button id="save" class="btn" type="button">Salvar alterações</button>':''}
+      <p id="msg" class="form-message" role="status" aria-live="polite"></p>
+      <div class="logout-wrap"><button id="logout" class="btn danger" type="button">Sair da conta</button></div></section>`;
+    document.querySelector('#save')?.addEventListener('click',()=>save(me.user.id));
+    document.querySelector('#logout').addEventListener('click',()=>BioAuth.signOut());
+  }
+  async function save(){
+    const button=document.querySelector('#save');const message=document.querySelector('#msg');
+    const name=document.querySelector('#name').value.trim();const raw=document.querySelector('#call').value.trim();const call=raw?Number(raw):null;
+    if(!name){message.textContent='Digite seu nome.';message.className='form-message error-text';return}
+    if(name.length>120){message.textContent='O nome deve ter no máximo 120 caracteres.';message.className='form-message error-text';return}
+    if(call!==null&&(!Number.isInteger(call)||call<1||call>999)){message.textContent='Digite um número entre 1 e 999.';message.className='form-message error-text';return}
+    button.disabled=true;button.textContent='Salvando…';message.textContent='Salvando…';message.className='form-message';
+    try{
+      const result=await BioUI.withTimeout(sb.rpc('update_my_profile',{new_name:name,new_call_number:call}));
+      if(result.error)throw result.error;
+      message.textContent='Alterações salvas com sucesso.';message.className='form-message success-text';button.textContent='Salvo';
+      setTimeout(()=>{button.disabled=false;button.textContent='Salvar alterações'},1000);
+    }catch(error){message.textContent=BioUI.friendlyError(error);message.className='form-message error-text';button.disabled=false;button.textContent='Salvar alterações'}
+  }
+  load();
+})();
