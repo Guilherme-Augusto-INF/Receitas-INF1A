@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://fbniifpkiyafpuhpnbll.supabase.co wss://fbniifpkiyafpuhpnbll.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+  <link rel="icon" href="../public/favicon.svg"><link rel="stylesheet" href="../public/styles.css?v=3.0.1">
+  <title>Criar conta — Biologia INF1A</title>
+</head>
+<body><main class="wrap narrow"><section class="panel reveal is-visible">
+<a class="back-link" href="../login/">← Voltar para entrar</a>
+<p class="eyebrow">NOVA CONTA</p><h1>Criar conta</h1>
+<p class="muted">Cadastre seu e-mail e uma senha para participar da atividade.</p>
+<form id="signupForm" novalidate>
+<div class="field"><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+<div class="field"><label for="password">Senha</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="6" required></div>
+<div class="field"><label for="confirmPassword">Confirmar senha</label><input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="6" required></div>
+<button id="signup-submit" class="btn full-width" type="submit">Criar conta</button>
+</form>
+<p class="muted separated">Já tem uma conta? <a href="../login/">Entrar</a></p>
+<p id="msg" class="form-message" role="status" aria-live="polite"></p>
+</section></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0" integrity="sha384-JBR+x8blGwjDRO63aHCGiZMD4VNiTR4ZUGA+N6ZKLf3zNt1fK8IBpcgPaMrxqWBp" crossorigin="anonymous"></script>
+<script src="../public/supabase.js?v=3.0.0"></script><script src="../public/ui.js?v=3.0.0"></script><script src="../public/theme.js?v=3.0.0"></script><script src="../public/effects.js?v=3.0.0"></script><script src="../public/signup.js?v=3.0.1"></script>
+</body></html>
