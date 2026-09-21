@@ -12,7 +12,8 @@
     recipe_deleted:'Receita excluída',recipe_locked:'Receita bloqueada',recipe_unlocked:'Receita reaberta',
     photo_changed:'Foto alterada',announcement_changed:'Aviso alterado'
   };
-  let group=null,recipes=[],profile=null,members=[];
+  const reviewLabels={draft:'Rascunho',submitted:'Enviado para revisão',changes_requested:'Correções solicitadas',approved:'Aprovado'};
+  let group=null,recipes=[],profile=null,members=[],settings={edits_locked:false,activity_finalized:false};
 
   async function load(){
     root.innerHTML='<section class="panel loading-state">Carregando grupo…</section>';
@@ -27,16 +28,18 @@
       group=groupResult.data;
 
       const recipesRequest=BioUI.withTimeout(
-        sb.from('recipes').select('id,group_id,title,ingredients,instructions,notes,updated_by,created_at,updated_at,is_locked').eq('group_id',group.id).order('updated_at',{ascending:false})
+        sb.from('recipes').select('id,group_id,title,ingredients,instructions,notes,updated_by,created_at,updated_at,is_locked,review_status,row_version').eq('group_id',group.id).order('updated_at',{ascending:false})
       );
+      const settingsRequest=BioUI.withTimeout(sb.from('classroom_settings').select('edits_locked,activity_finalized').eq('id',1).maybeSingle());
       const maySeeMembers=profile&&!profile.is_anonymous&&(profile.role==='teacher'||profile.group_id===group.id);
       const membersRequest=maySeeMembers
         ?BioUI.withTimeout(sb.rpc('get_group_members',{target_group_id:group.id}))
         :Promise.resolve({data:[],error:null});
-      const[recipeResult,memberResult]=await Promise.all([recipesRequest,membersRequest]);
+      const[recipeResult,memberResult,settingsResult]=await Promise.all([recipesRequest,membersRequest,settingsRequest]);
       if(recipeResult.error)throw recipeResult.error;
       if(memberResult.error)throw memberResult.error;
-      recipes=recipeResult.data||[];members=memberResult.data||[];
+      if(settingsResult.error)throw settingsResult.error;
+      recipes=recipeResult.data||[];members=memberResult.data||[];settings=settingsResult.data||settings;
       render(maySeeMembers);
     }catch(error){
       root.innerHTML='<section class="panel error-state"><strong>Não foi possível carregar este grupo.</strong><p>'+esc(BioUI.friendlyError(error))+'</p><button class="btn" id="retry">Tentar novamente</button></section>';
@@ -47,7 +50,7 @@
   function render(maySeeMembers){
     const isTeacher=profile?.role==='teacher'&&!profile.is_anonymous;
     const belongsToGroup=profile?.group_id===group.id&&!profile?.is_anonymous;
-    const canEditContent=(isTeacher||belongsToGroup)&&group.activity_status!=='completed';
+    const canEditContent=isTeacher||(belongsToGroup&&group.activity_status!=='completed'&&!settings.edits_locked&&!settings.activity_finalized);
     const status=labels[group.activity_status]||labels.not_started;
     const photo=BioUI.photoUrl(group.photo_url);
     root.innerHTML=`
@@ -61,6 +64,7 @@
         </div>
       </section>
       ${group.activity_status==='completed'?'<div class="status success-banner"><strong>Atividade finalizada.</strong> As receitas estão bloqueadas até o professor reabrir o grupo.</div>':''}
+      ${(settings.edits_locked||settings.activity_finalized)&&!isTeacher?'<div class="note"><strong>Edições bloqueadas pelo professor.</strong> Você ainda pode consultar as receitas e os feedbacks.</div>':''}
       ${profile?.is_anonymous?'<div class="note">O acesso anônimo é somente para consulta. Entre com uma conta cadastrada para editar.</div>':''}
       <section class="panel reveal">
         <p class="eyebrow">INTEGRANTES</p><h2>Quem está no grupo</h2>
@@ -90,11 +94,13 @@
     if(!recipes.length){list.innerHTML='<div class="empty-state">Nenhuma receita cadastrada ainda.</div>';return}
     list.innerHTML=recipes.map(recipe=>{
       const showActions=canEditContent||isTeacher;
-      return `<article class="recipe reveal"><div class="section-head"><h3>${esc(recipe.title)}</h3>${recipe.is_locked?'<span class="status-pill status-completed">🔒 Bloqueada</span>':''}</div>
+      const studentCanEdit=canEditContent&&!recipe.is_locked&&['draft','changes_requested'].includes(recipe.review_status);
+      const canReview=profile&&!profile.is_anonymous&&(isTeacher||profile.group_id===group.id);
+      return `<article class="recipe reveal"><div class="section-head"><h3>${esc(recipe.title)}</h3><span class="review-badge review-${recipe.review_status}">${reviewLabels[recipe.review_status]||recipe.review_status}</span></div>
         <h4>Ingredientes</h4><p>${esc(recipe.ingredients).replace(/\n/g,'<br>')}</p>
         <h4>Modo de preparo</h4><p>${esc(recipe.instructions).replace(/\n/g,'<br>')}</p>
         ${recipe.notes?`<h4>Observações</h4><p>${esc(recipe.notes).replace(/\n/g,'<br>')}</p>`:''}
-        ${showActions?`<div class="actions">${canEditContent&&!recipe.is_locked?`<button class="btn secondary edit" data-id="${recipe.id}" type="button">Editar</button>`:''}${isTeacher?`<button class="btn secondary lock" data-id="${recipe.id}" data-locked="${!recipe.is_locked}" type="button">${recipe.is_locked?'Reabrir receita':'Bloquear receita'}</button><button class="btn danger delete" data-id="${recipe.id}" type="button">Excluir</button>`:''}</div>`:''}</article>`;
+        ${showActions||canReview?`<div class="actions">${studentCanEdit?`<button class="btn secondary edit" data-id="${recipe.id}" type="button">Editar</button>`:''}${!isTeacher&&studentCanEdit?`<button class="btn submit-review" data-id="${recipe.id}" type="button">${recipe.review_status==='changes_requested'?'Reenviar para revisão':'Enviar para revisão'}</button>`:''}${canReview?`<button class="btn secondary feedback" data-id="${recipe.id}" type="button">Ver feedback</button>`:''}${isTeacher?`<button class="btn secondary lock" data-id="${recipe.id}" data-locked="${!recipe.is_locked}" type="button">${recipe.is_locked?'Reabrir receita':'Bloquear receita'}</button><button class="btn danger delete" data-id="${recipe.id}" type="button">Mover para lixeira</button>`:''}</div><div class="history-box" id="recipe-feedback-${recipe.id}" hidden></div>`:''}</article>`;
     }).join('');
   }
 
@@ -103,6 +109,8 @@
     document.querySelectorAll('.edit').forEach(button=>button.addEventListener('click',()=>editor(button.dataset.id)));
     document.querySelectorAll('.delete').forEach(button=>button.addEventListener('click',()=>removeRecipe(button)));
     document.querySelectorAll('.lock').forEach(button=>button.addEventListener('click',()=>toggleLock(button)));
+    document.querySelectorAll('.submit-review').forEach(button=>button.addEventListener('click',()=>submitReview(button)));
+    document.querySelectorAll('.feedback').forEach(button=>button.addEventListener('click',()=>showFeedback(button)));
     if(!isTeacher)return;
     document.querySelector('#saveStatus').addEventListener('click',saveStatus);
     document.querySelector('#historyBtn').addEventListener('click',toggleHistory);
@@ -114,19 +122,19 @@
     const target=document.querySelector('#editor');
     target.hidden=false;
     target.innerHTML=`<div class="editor-card"><div class="field"><label for="rt">Nome da receita</label><input id="rt" maxlength="160" value="${esc(selected?.title||'')}"></div><div class="field"><label for="ri">Ingredientes</label><textarea id="ri" maxlength="20000">${esc(selected?.ingredients||'')}</textarea></div><div class="field"><label for="rx">Modo de preparo</label><textarea id="rx" maxlength="20000">${esc(selected?.instructions||'')}</textarea></div><div class="field"><label for="rn">Observações</label><textarea id="rn" maxlength="5000">${esc(selected?.notes||'')}</textarea></div><div class="actions"><button class="btn" id="saveRecipe" type="button">Salvar receita</button><button class="btn secondary" id="cancelRecipe" type="button">Cancelar</button></div><p id="recipeMsg" class="form-message" role="status"></p></div>`;
-    document.querySelector('#saveRecipe').addEventListener('click',event=>saveRecipe(selected?.id,event.currentTarget));
+    document.querySelector('#saveRecipe').addEventListener('click',event=>saveRecipe(selected?.id,event.currentTarget,selected?.row_version));
     document.querySelector('#cancelRecipe').addEventListener('click',()=>{target.hidden=true});
     document.querySelector('#rt').focus();
   }
 
-  async function saveRecipe(id,button){
+  async function saveRecipe(id,button,rowVersion){
     const message=document.querySelector('#recipeMsg');
     const payload={title:document.querySelector('#rt').value.trim(),ingredients:document.querySelector('#ri').value.trim(),instructions:document.querySelector('#rx').value.trim(),notes:document.querySelector('#rn').value.trim()};
     if(!payload.title||!payload.ingredients||!payload.instructions){message.textContent='Preencha nome, ingredientes e modo de preparo.';message.className='form-message error-text';return}
     button.disabled=true;message.textContent='Salvando…';message.className='form-message';
     try{
       const result=id
-        ?await BioUI.withTimeout(sb.rpc('save_recipe_classroom',{target_recipe_id:id,new_title:payload.title,new_ingredients:payload.ingredients,new_instructions:payload.instructions,new_notes:payload.notes}))
+        ?await BioUI.withTimeout(sb.rpc('save_recipe_versioned',{p_recipe_id:id,p_expected_version:rowVersion,p_title:payload.title,p_ingredients:payload.ingredients,p_instructions:payload.instructions,p_notes:payload.notes}))
         :await BioUI.withTimeout(sb.from('recipes').insert({...payload,group_id:group.id}).select().single());
       if(result.error)throw result.error;await load();
     }catch(error){message.textContent=BioUI.friendlyError(error);message.className='form-message error-text';button.disabled=false}
@@ -155,10 +163,21 @@
     catch(error){alert(BioUI.friendlyError(error));button.disabled=false}
   }
   async function removeRecipe(button){
-    if(!confirm('Excluir esta receita permanentemente?'))return;
+    if(!confirm('Mover esta receita para a lixeira? Ela poderá ser restaurada no painel.'))return;
     button.disabled=true;
-    try{const result=await BioUI.withTimeout(sb.from('recipes').delete().eq('id',button.dataset.id));if(result.error)throw result.error;await load()}
+    try{const result=await BioUI.withTimeout(sb.rpc('soft_delete_recipe',{p_recipe_id:button.dataset.id}));if(result.error)throw result.error;await load()}
     catch(error){alert(BioUI.friendlyError(error));button.disabled=false}
+  }
+  async function submitReview(button){
+    if(!confirm('Enviar esta receita para revisão do professor? Durante a revisão ela ficará bloqueada para edição.'))return;
+    button.disabled=true;
+    try{const result=await BioUI.withTimeout(sb.rpc('transition_recipe_review',{p_recipe_id:button.dataset.id,p_action:'submitted',p_message:null}));if(result.error)throw result.error;await load()}
+    catch(error){alert(BioUI.friendlyError(error));button.disabled=false}
+  }
+  async function showFeedback(button){
+    const box=document.querySelector('#recipe-feedback-'+CSS.escape(button.dataset.id));box.hidden=!box.hidden;if(box.hidden)return;box.innerHTML='<p>Carregando feedback…</p>';
+    try{const result=await BioUI.withTimeout(sb.rpc('get_recipe_reviews',{p_recipe_id:button.dataset.id}));if(result.error)throw result.error;box.innerHTML=result.data?.length?result.data.map(item=>`<div class="history-item"><span><strong>${esc(reviewLabels[item.event_type]||item.event_type)}</strong>${item.message?`<p>${esc(item.message)}</p>`:''}</span><small>${esc(item.author_name)} · ${new Date(item.created_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})}</small></div>`).join(''):'<p class="muted">Nenhum feedback registrado.</p>'}
+    catch(error){box.innerHTML='<p class="error-text">'+esc(BioUI.friendlyError(error))+'</p>'}
   }
   async function uploadPhoto(event){
     const button=event.currentTarget;const file=document.querySelector('#groupPhoto').files[0];

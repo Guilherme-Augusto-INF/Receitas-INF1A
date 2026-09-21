@@ -3,7 +3,7 @@ import{join}from'node:path';
 
 const root=new URL('../',import.meta.url);
 const read=path=>readFileSync(new URL(path,root),'utf8');
-const htmlFiles=['index.html','404.html','login/index.html','perfil/index.html','professor/index.html',...readdirSync(new URL('.',root)).filter(name=>/^grupo-[1-6]$/.test(name)).map(name=>join(name,'index.html'))];
+const htmlFiles=['index.html','404.html','login/index.html','cadastro/index.html','perfil/index.html','professor/index.html','apresentacao/index.html',...readdirSync(new URL('.',root)).filter(name=>/^grupo-[1-6]$/.test(name)).map(name=>join(name,'index.html'))];
 const failures=[];
 const check=(condition,message)=>{if(!condition)failures.push(message)};
 
@@ -12,9 +12,9 @@ for(const file of htmlFiles){
   check(!html.includes('Receitas-INF1A-02'),`${file}: referência ao repositório antigo`);
   check(html.includes('Content-Security-Policy'),`${file}: CSP ausente`);
   check(!/<script(?![^>]+src=)/i.test(html),`${file}: script inline encontrado`);
-  check(!/\?v=(?!3\.0\.0)/.test(html),`${file}: cache busting inconsistente`);
+  check(!/\?v=(?!4\.0\.0)/.test(html),`${file}: cache busting inconsistente`);
 }
-for(const file of ['login/index.html','perfil/index.html','professor/index.html']){
+for(const file of ['login/index.html','cadastro/index.html','perfil/index.html','professor/index.html','apresentacao/index.html']){
   check(/name="robots" content="noindex,nofollow"/.test(read(file)),`${file}: noindex ausente`);
 }
 const repoText=[...htmlFiles.map(read),...readdirSync(new URL('public/',root)).filter(name=>/\.(js|css|txt|xml|svg)$/.test(name)).map(name=>read('public/'+name))].join('\n');
@@ -24,6 +24,18 @@ check(read('sitemap.xml').includes('/Receitas-INF1A/grupo-6/'),'Sitemap da raiz 
 check(!/login|perfil|professor/.test(read('sitemap.xml')),'Sitemap da raiz contém rota privada');
 check(read('robots.txt').includes('/Receitas-INF1A/sitemap.xml'),'Robots da raiz não aponta para o sitemap canônico');
 check(read('robots.txt').includes('/Receitas-INF1A/professor/'),'Robots da raiz não restringe rotas administrativas');
+const teacher=read('public/teacher.js');
+for(const feature of ['teacher_dashboard_snapshot','bulk_assign_students','bulk_group_action','transition_recipe_review','set_checklist_item','save_announcement','soft_delete_recipe','restore_recipe','get_activity_history']){
+  check(teacher.includes(feature),`Painel do professor não referencia ${feature}`);
+}
+const group=read('public/group.js');
+check(group.includes('save_recipe_versioned'),'Edição de receita sem controle otimista');
+check(group.includes('transition_recipe_review'),'Workflow de revisão ausente na página do grupo');
+check(read('public/presentation.js').includes('get_public_classroom_state'),'Modo apresentação sem estado público seguro');
+const migrations=readdirSync(new URL('supabase/migrations/',root)).map(name=>read('supabase/migrations/'+name)).join('\n');
+for(const required of ['enable row level security','teacher_dashboard_snapshot','private.require_teacher','recipe_reviews','group_checklist','announcements']){
+  check(migrations.includes(required),`Migration administrativa não contém ${required}`);
+}
 
 if(failures.length){console.error(failures.join('\n'));process.exit(1)}
 console.log(`PASS: ${htmlFiles.length} páginas e metadados estáticos validados.`);

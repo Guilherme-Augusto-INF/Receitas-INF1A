@@ -16,10 +16,10 @@
     if(!root)return;
     try{
       const result=await BioUI.withTimeout(
-        sb.from('classroom_settings').select('announcement,announcement_updated_at').eq('id',1).maybeSingle()
+        sb.from('announcements').select('title,message,updated_at').eq('is_published',true).is('deleted_at',null).order('is_featured',{ascending:false}).order('updated_at',{ascending:false}).limit(1).maybeSingle()
       );
       if(result.error)throw result.error;
-      if(!result.data?.announcement){root.replaceChildren();return}
+      if(!result.data?.message){root.replaceChildren();return}
       const box=document.createElement('div');
       box.className='announcement reveal is-visible';
       const icon=document.createElement('span');
@@ -28,11 +28,11 @@
       icon.textContent='📢';
       const content=document.createElement('div');
       const title=document.createElement('strong');
-      title.textContent='Aviso do professor';
+      title.textContent=result.data.title||'Aviso do professor';
       const text=document.createElement('p');
-      text.textContent=result.data.announcement;
+      text.textContent=result.data.message;
       const date=document.createElement('small');
-      date.textContent='Atualizado em '+new Date(result.data.announcement_updated_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+      date.textContent='Atualizado em '+new Date(result.data.updated_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
       content.append(title,text,date);
       box.append(icon,content);
       root.replaceChildren(box);
@@ -51,6 +51,8 @@
     if(realtimeChannel)return;
     realtimeChannel=sb.channel('classroom-live')
       .on('postgres_changes',{event:'*',schema:'public',table:'classroom_settings'},()=>{announcement();notify('classroom_settings')})
+      .on('postgres_changes',{event:'*',schema:'public',table:'announcements'},()=>{announcement();notify('announcements')})
+      .on('postgres_changes',{event:'*',schema:'public',table:'recipe_reviews'},()=>notify('recipe_reviews'))
       .on('postgres_changes',{event:'*',schema:'public',table:'groups'},()=>notify('groups'))
       .on('postgres_changes',{event:'*',schema:'public',table:'recipes'},()=>notify('recipes'))
       .on('postgres_changes',{event:'*',schema:'public',table:'profiles'},()=>notify('profiles'))

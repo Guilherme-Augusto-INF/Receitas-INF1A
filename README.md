@@ -24,12 +24,14 @@ O `vercel.json` foi mantido apenas como compatibilidade histórica. Vercel não 
 
 ### Professor
 
-- Acompanha todos os grupos e status.
-- Publica ou remove avisos.
-- Organiza alunos e professores por grupo e número.
-- Altera papéis por uma RPC administrativa validada no servidor.
-- Revisa, bloqueia, reabre e exclui receitas.
-- Finaliza ou reabre grupos.
+- Usa uma central responsiva com métricas, pendências e atividade recente.
+- Pesquisa, filtra, edita e move alunos individualmente ou em massa.
+- Gerencia grupos, status e checklist automático/manual.
+- Revisa receitas, aprova ou solicita correções com histórico de feedback.
+- Publica, destaca, oculta e agenda a validade de avisos.
+- Bloqueia, libera ou finaliza a atividade com autorização no banco.
+- Recupera receitas pela lixeira e exporta a turma em CSV.
+- Abre um modo apresentação legível para projeção em sala.
 - Envia fotos JPG, PNG ou WebP de até 5 MiB.
 - Exclui contas de alunos com confirmação; não pode excluir a própria conta nem outra conta de professor.
 
@@ -42,6 +44,7 @@ O acesso anônimo é somente para consulta. Ele não pode editar perfil, receita
 - `index.html`: home e progresso da turma.
 - `grupo-1/` a `grupo-6/`: páginas dos grupos usando o comportamento compartilhado de `public/group.js`.
 - `login/`, `perfil/`, `professor/`: autenticação, perfil e painel.
+- `apresentacao/`: acompanhamento público para projeção, sem controles administrativos.
 - `public/`: estilos, scripts compartilhados, metadados e QR Codes.
 - `supabase/migrations/`: migrations versionadas; migrations aplicadas não devem ser reescritas.
 - `tests/static-regression.mjs`: verificações estáticas reproduzíveis.
@@ -53,6 +56,8 @@ O acesso anônimo é somente para consulta. Ele não pode editar perfil, receita
 - RPCs `SECURITY DEFINER` revogam `PUBLIC`/`anon` quando a operação exige login e validam `auth.uid()`, papel, anonimato, grupo e alvo internamente.
 - Atualizações de perfil usam RPCs com campos permitidos; `authenticated` não possui `UPDATE` direto em `profiles`.
 - Finalização é imposta por função e trigger no banco, não apenas pela interface.
+- Ações administrativas em massa são transacionais e auditadas.
+- Receitas usam versão otimista para impedir que uma edição simultânea sobrescreva outra silenciosamente.
 - O bucket público de fotos limita tamanho e MIME; somente professores autenticados podem escrever.
 - Dados dinâmicos são escapados ou inseridos com `textContent`.
 - `@supabase/supabase-js` está fixado em `2.116.0` com SRI.
@@ -77,3 +82,5 @@ O QR Code canônico está disponível em `public/qr-code.svg` e `public/qr-code.
 ## Auditoria V3
 
 O inventário, os achados, a matriz de permissões, os testes negativos e a avaliação de prontidão estão em [`AUDIT-V3.md`](AUDIT-V3.md).
+
+A evolução do painel, o workflow de revisão e os testes de segurança estão em [`AUDIT-TEACHER-CENTER.md`](AUDIT-TEACHER-CENTER.md).

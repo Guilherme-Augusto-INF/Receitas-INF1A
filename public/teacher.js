@@ -2,122 +2,152 @@
   const root=document.querySelector('#teacher-app');
   if(!root)return;
   const esc=BioUI.escape;
-  const statusLabel={not_started:'⚪ Não iniciado',in_progress:'🔵 Em andamento',review:'🟡 Em revisão',completed:'🟢 Finalizado'};
-  const historyLabel={status_changed:'Status alterado',recipe_created:'Receita criada',recipe_updated:'Receita atualizada',recipe_deleted:'Receita excluída',recipe_locked:'Receita bloqueada',recipe_unlocked:'Receita reaberta',photo_changed:'Foto alterada'};
-  let groups=[],profiles=[],overview=[],currentUser=null;
+  const statusText={not_started:'Não iniciado',in_progress:'Em andamento',review:'Em revisão',completed:'Finalizado'};
+  const reviewText={draft:'Rascunho',submitted:'Enviado para revisão',changes_requested:'Correções solicitadas',approved:'Aprovado'};
+  const actionText={profile_updated:'Perfil alterado',students_bulk_moved:'Alunos movidos',group_updated:'Grupo alterado',checklist_updated:'Checklist atualizado',recipe_submitted:'Receita enviada',recipe_approved:'Receita aprovada',recipe_changes_requested:'Correções solicitadas',teacher_comment_added:'Comentário do professor',classroom_lock:'Edições bloqueadas',classroom_unlock:'Edições liberadas',classroom_finalize:'Atividade finalizada',announcement_saved:'Aviso salvo',announcement_deleted:'Aviso removido',recipe_trashed:'Receita enviada à lixeira',recipe_restored:'Receita restaurada',recipe_purged:'Receita excluída definitivamente',status_changed:'Status alterado',recipe_created:'Receita criada',recipe_updated:'Receita atualizada'};
+  let data=null,active='dashboard',historyOffset=0;
 
-  async function load(){
-    root.innerHTML='<section class="panel loading-state">Carregando painel…</section>';
+  const groupName=id=>data?.groups.find(group=>group.id===id)?.name||'Sem grupo';
+  const date=value=>value?new Date(value).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—';
+  const toast=(message,type='success')=>{
+    let node=document.querySelector('#teacher-toast');
+    if(!node){node=document.createElement('div');node.id='teacher-toast';node.className='teacher-toast';node.setAttribute('role','status');node.setAttribute('aria-live','polite');document.body.append(node)}
+    node.textContent=message;node.dataset.type=type;node.hidden=false;clearTimeout(node.timer);node.timer=setTimeout(()=>{node.hidden=true},4200);
+  };
+  const rpc=async(name,args={})=>{const result=await BioUI.withTimeout(sb.rpc(name,args));if(result.error)throw result.error;return result.data};
+  const setBusy=(button,busy,label='Processando…')=>{if(!button)return;button.disabled=busy;if(busy){button.dataset.label=button.textContent;button.textContent=label}else if(button.dataset.label){button.textContent=button.dataset.label;delete button.dataset.label}};
+
+  async function load(keepTab=true){
+    root.setAttribute('aria-busy','true');
+    if(!data)root.innerHTML='<section class="panel loading-state">Carregando central de gerenciamento…</section>';
     try{
       const me=await BioAuth.profile();
       if(!me.user){location.href='../login/';return}
-      currentUser=me.user.id;
-      if(me.error||me.profile?.role!=='teacher'||me.profile?.is_anonymous){
-        root.innerHTML='<section class="panel error-state"><h2>Acesso negado</h2><p>Esta área é exclusiva para professores autorizados.</p><a class="btn secondary" href="../">Voltar ao início</a></section>';return;
-      }
-      const[groupResult,profileResult,overviewResult,settingsResult]=await Promise.all([
-        BioUI.withTimeout(sb.from('groups').select('id,name,slug,description,activity_status,photo_url').order('slug')),
-        BioUI.withTimeout(sb.from('profiles').select('id,full_name,role,group_id,is_anonymous,call_number').eq('is_anonymous',false).order('full_name')),
-        BioUI.withTimeout(sb.rpc('get_group_overview')),
-        BioUI.withTimeout(sb.from('classroom_settings').select('announcement').eq('id',1).maybeSingle())
-      ]);
-      const error=groupResult.error||profileResult.error||overviewResult.error||settingsResult.error;
-      if(error)throw error;
-      groups=groupResult.data||[];profiles=profileResult.data||[];overview=overviewResult.data||[];
-      render(settingsResult.data?.announcement||'');
-    }catch(error){
-      root.innerHTML='<section class="panel error-state"><strong>Não foi possível carregar o painel.</strong><p>'+esc(BioUI.friendlyError(error))+'</p><button id="retry" class="btn">Tentar novamente</button></section>';
-      document.querySelector('#retry')?.addEventListener('click',load);
-    }
+      if(me.error||me.profile?.role!=='teacher'||me.profile?.is_anonymous){root.innerHTML='<section class="panel error-state"><h2>Acesso negado</h2><p>Esta área é exclusiva para professores autorizados.</p><a class="btn secondary" href="../">Voltar</a></section>';return}
+      data=await rpc('teacher_dashboard_snapshot');
+      render(keepTab?active:'dashboard');
+    }catch(error){root.innerHTML=`<section class="panel error-state"><h2>Não foi possível carregar o painel</h2><p>${esc(BioUI.friendlyError(error))}</p><button id="retry" class="btn">Tentar novamente</button></section>`;document.querySelector('#retry')?.addEventListener('click',()=>load())}
+    finally{root.removeAttribute('aria-busy')}
   }
 
-  function render(announcement){
-    const counts={not_started:0,in_progress:0,review:0,completed:0};
-    overview.forEach(group=>{if(group.activity_status in counts)counts[group.activity_status]+=1});
-    root.innerHTML=`
-      <nav class="panel teacher-nav" aria-label="Seções do painel"><a href="#turma">Turma</a><a href="#grupos">Grupos</a><a href="#usuarios">Usuários</a><a href="#avisos">Avisos</a></nav>
-      <section id="turma" class="dashboard-hero panel reveal is-visible"><div><p class="eyebrow">TURMA</p><h2>Visão geral</h2><p class="muted">Acompanhe a atividade sem abrir cada grupo.</p></div><div class="class-clock"><small>Horário de Brasília</small><strong data-brasilia-clock>--:--:--</strong></div></section>
-      <section class="stats-grid" aria-label="Resumo dos status">${Object.entries(counts).map(([key,value])=>`<div class="stat-card"><strong>${value}</strong><small>${statusLabel[key]}</small></div>`).join('')}</section>
-      <section id="avisos" class="panel reveal"><p class="eyebrow">AVISOS</p><h2>Comunicação da aula</h2><label class="sr-only" for="announcement">Aviso para a turma</label><textarea id="announcement" class="classroom-textarea" maxlength="1000" placeholder="Ex.: Todos os grupos devem finalizar até 16h30.">${esc(announcement)}</textarea><div class="actions"><button id="publishAnnouncement" class="btn" type="button">Publicar aviso</button><button id="clearAnnouncement" class="btn secondary" type="button">Limpar</button></div><p id="announcementMsg" class="form-message" role="status"></p></section>
-      <section id="grupos" class="panel reveal"><p class="eyebrow">GRUPOS</p><h2>Status e trabalhos</h2><div class="group-overview-grid">${overview.map(groupCard).join('')}</div></section>
-      <section id="usuarios" class="panel reveal"><p class="eyebrow">USUÁRIOS</p><h2>Organizar aluno ou professor</h2><div class="form-grid"><div class="field"><label for="uid">Usuário</label><select id="uid">${profiles.map(profile=>`<option value="${profile.id}">${esc(profile.full_name||'Usuário sem nome')} — ${profile.role==='teacher'?'Professor':'Aluno'}</option>`).join('')}</select></div><div class="field"><label for="gid">Grupo</label><select id="gid"><option value="">Sem grupo</option>${groups.map(group=>`<option value="${group.id}">${esc(group.name)}</option>`).join('')}</select></div><div class="field"><label for="call">Número da chamada</label><input id="call" type="number" min="1" max="999" inputmode="numeric"></div></div><button id="saveUser" class="btn" type="button">Salvar organização</button><p id="umsg" class="form-message" role="status"></p></section>
-      <section class="panel reveal"><p class="eyebrow">CONTROLE DA ATIVIDADE</p><h2>Criar grupo</h2><p class="muted">Use somente se a atividade realmente ganhar um novo grupo.</p><form id="newGroup"><div class="form-grid"><div class="field"><label for="gn">Nome</label><input id="gn" required maxlength="120" placeholder="Grupo 7 — Tema"></div><div class="field"><label for="gs">Endereço curto</label><input id="gs" required pattern="[a-z0-9-]+" maxlength="40" placeholder="grupo-7"></div><div class="field"><label for="gd">Descrição</label><input id="gd" maxlength="500"></div></div><button class="btn" type="submit">Criar grupo</button></form><p id="gmsg" class="form-message" role="status"></p></section>
-      <section class="panel reveal"><p class="eyebrow">CONTAS CADASTRADAS</p><h2>Alunos e professores</h2><div id="people"></div></section>`;
-    bind();renderPeople();Classroom?.startClock();BioEffects?.observe();
+  function render(tab){
+    active=tab;
+    const tabs=[['dashboard','Visão geral'],['students','Alunos'],['groups','Grupos'],['reviews','Revisões'],['announcements','Avisos'],['activity','Atividade'],['trash','Lixeira']];
+    root.innerHTML=`<div id="panel-status" class="sr-only" aria-live="polite"></div>
+      <nav class="teacher-tabs panel" aria-label="Seções da central">${tabs.map(([id,label])=>`<button class="teacher-tab ${id===active?'active':''}" data-tab="${id}" aria-current="${id===active?'page':'false'}">${label}</button>`).join('')}</nav>
+      <div class="teacher-toolbar panel"><div><strong>${esc(data.settings.activity_name)}</strong><small>${data.settings.activity_finalized?'Atividade finalizada':data.settings.edits_locked?'Edições bloqueadas':'Edições liberadas'}</small></div><div class="actions"><a class="btn secondary" href="../apresentacao/" target="_blank" rel="noopener">Modo apresentação</a><button class="btn secondary" data-action="export">Exportar CSV</button><button class="btn secondary" data-action="refresh">Atualizar</button></div></div>
+      <section id="teacher-content">${section(active)}</section>`;
+    bind();Classroom?.startClock();BioEffects?.observe();
+  }
+  function section(tab){return({dashboard,students,groups,reviews,announcements,activity,trash}[tab]||dashboard)()}
+
+  function metrics(){
+    const m=data.metrics;const status=Object.fromEntries(Object.keys(statusText).map(k=>[k,data.groups.filter(g=>g.activity_status===k).length]));
+    const values=[['Alunos',m.students,'students'],['Professores',m.teachers,'students'],['Grupos',m.groups,'groups'],['Receitas',m.recipes,'reviews'],['Sem grupo',m.students_without_group,'students'],['Sem número',m.students_without_number,'students'],['Grupos sem receita',m.groups_without_recipe,'groups'],['Aguardando revisão',m.review_waiting,'reviews'],...Object.entries(status).map(([k,v])=>[statusText[k],v,'groups'])];
+    return `<div class="management-metrics">${values.map(([label,value,target])=>`<button class="metric-card" data-tab="${target}"><strong>${value}</strong><span>${label}</span></button>`).join('')}</div>`;
+  }
+  function getPending(){
+    const list=[];
+    data.profiles.filter(p=>p.role==='student').forEach(p=>{if(!p.group_id)list.push({kind:'Aluno sem grupo',text:p.full_name,target:'students'});if(!p.call_number)list.push({kind:'Aluno sem número',text:p.full_name,target:'students'})});
+    data.groups.forEach(g=>{const members=data.profiles.filter(p=>p.role==='student'&&p.group_id===g.id);const recipes=data.recipes.filter(r=>r.group_id===g.id);if(!members.length)list.push({kind:'Grupo sem integrantes',text:g.name,target:'groups'});if(!recipes.length)list.push({kind:'Grupo sem receita',text:g.name,target:'groups'});if(g.activity_status==='not_started')list.push({kind:'Grupo não iniciado',text:g.name,target:'groups'});recipes.filter(r=>r.review_status==='submitted').forEach(r=>list.push({kind:'Aguardando professor',text:`${g.name}: ${r.title}`,target:'reviews'}));recipes.filter(r=>r.review_status==='changes_requested').forEach(r=>list.push({kind:'Correções solicitadas',text:`${g.name}: ${r.title}`,target:'reviews'}))});
+    return list;
+  }
+  function dashboard(){
+    const pending=getPending();
+    return `<section class="dashboard-hero panel"><div><p class="eyebrow">CENTRAL DA TURMA</p><h2>Visão geral</h2><p class="muted">Informações que exigem atenção durante a atividade.</p></div><div class="class-clock"><small>Horário de Brasília</small><strong data-brasilia-clock>--:--:--</strong></div></section>
+      ${metrics()}
+      <div class="management-columns"><section class="panel"><div class="section-head"><div><p class="eyebrow">PENDÊNCIAS</p><h2>${pending.length} item(ns)</h2></div></div><div class="pending-list">${pending.length?pending.slice(0,20).map(p=>`<button class="pending-item" data-tab="${p.target}"><span><strong>${esc(p.kind)}</strong><small>${esc(p.text)}</small></span><span aria-hidden="true">→</span></button>`).join(''):'<div class="empty-state">Nenhuma pendência detectada.</div>'}</div></section>
+      <section class="panel"><p class="eyebrow">ATIVIDADE RECENTE</p><h2>Últimas alterações</h2>${historyList(data.recent.slice(0,12))}</section></div>
+      <section class="panel"><p class="eyebrow">CONTROLE GERAL</p><h2>Bloqueio e finalização</h2><p class="muted">Estas regras são aplicadas no banco, inclusive em chamadas diretas à API.</p><div class="actions"><button class="btn secondary" data-control="unlock">Liberar edições</button><button class="btn" data-control="lock">Bloquear edições</button><button class="btn danger" data-control="finalize">Finalizar atividade</button></div></section>`;
   }
 
-  function groupCard(group){
-    const photo=BioUI.photoUrl(group.photo_url);
-    return `<article class="overview-card"><div class="overview-main"><div class="section-head"><h3>${esc(group.name)}</h3><span class="status-pill status-${group.activity_status}">${statusLabel[group.activity_status]}</span></div><p class="muted">${esc(group.description||'Sem descrição')}</p><div class="mini-stats"><span>Integrantes: ${group.member_count}</span><span>Receitas: ${group.recipe_count}</span></div><div class="actions"><label class="sr-only" for="status-${group.group_id}">Status de ${esc(group.name)}</label><select id="status-${group.group_id}" class="status-select" data-id="${group.group_id}">${Object.entries(statusLabel).map(([key,label])=>`<option value="${key}" ${key===group.activity_status?'selected':''}>${label}</option>`).join('')}</select><a class="btn secondary" href="../${encodeURIComponent(group.slug)}/">Abrir</a><button class="btn secondary history" data-id="${group.group_id}" type="button">Histórico</button></div><div class="photo-actions"><label class="sr-only" for="photo-${group.group_id}">Foto de ${esc(group.name)}</label><input id="photo-${group.group_id}" type="file" accept="image/jpeg,image/png,image/webp" class="photo-file" data-id="${group.group_id}"><button class="btn secondary photo-upload" data-id="${group.group_id}" type="button">${photo?'Trocar foto':'Enviar foto'}</button></div><div class="history-box" id="history-${group.group_id}" hidden></div></div></article>`;
+  function students(){
+    return `<section class="panel"><div class="section-head"><div><p class="eyebrow">ALUNOS</p><h2>Gerenciamento da turma</h2></div><span class="muted">${data.profiles.filter(p=>p.role==='student').length} alunos</span></div>
+      <div class="filter-grid"><div class="field"><label for="student-search">Pesquisar</label><input id="student-search" type="search" placeholder="Nome, número ou e-mail"></div><div class="field"><label for="student-group">Grupo</label><select id="student-group"><option value="">Todos</option><option value="none">Sem grupo</option>${data.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select></div><div class="field"><label for="student-state">Situação</label><select id="student-state"><option value="">Todas</option><option value="missing-number">Sem número</option><option value="missing-group">Sem grupo</option></select></div></div>
+      <div class="bulk-bar"><strong><span id="selected-count">0</span> selecionado(s)</strong><select id="bulk-group"><option value="">Remover dos grupos</option>${data.groups.map(g=>`<option value="${g.id}">Mover para ${esc(g.name)}</option>`).join('')}</select><button class="btn" data-action="bulk-students" disabled>Aplicar</button></div>
+      <div id="student-list" class="responsive-list">${studentRows(data.profiles.filter(p=>p.role==='student'))}</div></section>
+      <section class="panel"><p class="eyebrow">PROFESSORES</p><h2>Contas administrativas</h2>${studentRows(data.profiles.filter(p=>p.role==='teacher'),false)}</section>`;
+  }
+  function studentRows(rows,selectable=true){
+    if(!rows.length)return '<div class="empty-state">Nenhuma conta encontrada.</div>';
+    return rows.map(p=>`<article class="person-card" data-search="${esc(`${p.full_name} ${p.call_number||''} ${p.email||''}`.toLowerCase())}" data-group="${p.group_id||'none'}" data-number="${p.call_number?'set':'missing'}"><div class="person-select">${selectable?`<input class="student-check" type="checkbox" value="${p.id}" aria-label="Selecionar ${esc(p.full_name)}">`:''}</div><div><strong>${esc(p.full_name||'Sem nome')}</strong><small>Nº ${p.call_number??'não informado'} · ${esc(groupName(p.group_id))}</small><small>${esc(p.email||'E-mail indisponível')}</small></div><div class="actions"><button class="btn secondary" data-edit-student="${p.id}">Editar</button>${p.role==='student'?`<button class="btn danger" data-delete-account="${p.id}" data-name="${esc(p.full_name)}">Excluir conta</button>`:''}</div></article>`).join('');
   }
 
-  function renderPeople(){
-    const people=document.querySelector('#people');
-    if(!profiles.length){people.innerHTML='<div class="empty-state">Nenhum usuário cadastrado.</div>';return}
-    people.innerHTML='<div class="table-wrap"><table class="table"><thead><tr><th>Nome</th><th>Nº</th><th>Função</th><th>Grupo</th><th>Ações</th></tr></thead><tbody>'+profiles.map(profile=>{
-      const group=groups.find(item=>item.id===profile.group_id);const self=profile.id===currentUser;const teacher=profile.role==='teacher';
-      return `<tr><td>${esc(profile.full_name||'Sem nome')}</td><td>${profile.call_number??'—'}</td><td>${teacher?'Professor':'Aluno'}</td><td>${esc(group?.name||'Sem grupo')}</td><td>${self?'<span class="muted">Sua conta</span>':`<button class="btn secondary role" data-id="${profile.id}" data-role="${teacher?'student':'teacher'}" type="button">${teacher?'Tornar aluno':'Tornar professor'}</button>${teacher?'':` <button class="btn danger delete-account" data-id="${profile.id}" data-name="${esc(profile.full_name||'este aluno')}" type="button">Excluir conta</button>`}`}</td></tr>`;
-    }).join('')+'</tbody></table></div>';
-    document.querySelectorAll('.delete-account').forEach(button=>button.addEventListener('click',()=>deleteAccount(button)));
-    document.querySelectorAll('.role').forEach(button=>button.addEventListener('click',()=>changeRole(button)));
+  function checklistState(group,item){
+    if(item.is_manual)return item.is_completed;
+    const recipes=data.recipes.filter(r=>r.group_id===group.id),members=data.profiles.filter(p=>p.role==='student'&&p.group_id===group.id);
+    return {members_defined:members.length>0,call_numbers:members.length>0&&members.every(p=>p.call_number),recipe_registered:recipes.length>0,ingredients_filled:recipes.some(r=>r.ingredients?.trim()),instructions_filled:recipes.some(r=>r.instructions?.trim()),recipe_reviewed:recipes.some(r=>['changes_requested','approved'].includes(r.review_status)),teacher_approved:recipes.some(r=>r.review_status==='approved')}[item.item_key]||false;
   }
+  function groups(){
+    return `<section class="panel"><div class="section-head"><div><p class="eyebrow">GRUPOS</p><h2>Central de grupos</h2></div></div><div class="bulk-bar"><strong><span id="group-selected-count">0</span> selecionado(s)</strong><select id="bulk-group-action"><option value="status:not_started">Marcar não iniciados</option><option value="status:in_progress">Marcar em andamento</option><option value="status:review">Enviar para revisão</option><option value="status:completed">Finalizar grupos</option><option value="lock">Bloquear receitas</option><option value="unlock">Liberar receitas</option></select><button class="btn" data-action="bulk-groups" disabled>Aplicar</button></div><div class="admin-group-grid">${data.groups.map(groupCard).join('')}</div></section>`;
+  }
+  function groupCard(g){
+    const members=data.profiles.filter(p=>p.role==='student'&&p.group_id===g.id),recipes=data.recipes.filter(r=>r.group_id===g.id),items=data.checklist.filter(i=>i.group_id===g.id),done=items.filter(i=>checklistState(g,i)).length;
+    return `<article class="admin-group-card"><div class="section-head"><div><label class="check-title"><input class="group-check" type="checkbox" value="${g.id}"><strong>${esc(g.name)}</strong></label><p class="muted">${esc(g.description||'Sem descrição')}</p></div><span class="status-pill status-${g.activity_status}">${statusText[g.activity_status]}</span></div><div class="mini-stats"><span>${members.length} integrante(s)</span><span>${recipes.length} receita(s)</span><span>${done}/${items.length} checks</span></div><progress max="${items.length||1}" value="${done}">${done}/${items.length}</progress><details><summary>Checklist e ações</summary><div class="checklist-list">${items.map(item=>`<label class="checklist-item ${item.is_manual?'manual':'automatic'}"><input type="checkbox" ${checklistState(g,item)?'checked':''} ${item.is_manual?`data-check-item="${item.item_key}" data-group-id="${g.id}"`:'disabled'}><span>${esc(item.label)}<small>${item.is_manual?'Manual':'Automático'}</small></span></label>`).join('')}</div><div class="actions"><button class="btn secondary" data-edit-group="${g.id}">Editar grupo</button><a class="btn secondary" href="../${encodeURIComponent(g.slug)}/">Abrir receitas</a></div></details></article>`;
+  }
+
+  function reviews(){
+    const ordered=[...data.recipes].sort((a,b)=>(a.review_status==='submitted'?-1:1)-(b.review_status==='submitted'?-1:1));
+    return `<section class="panel"><p class="eyebrow">REVISÃO PEDAGÓGICA</p><h2>Receitas</h2><div class="filter-grid"><div class="field"><label for="review-filter">Estado</label><select id="review-filter"><option value="">Todos</option>${Object.entries(reviewText).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div><div class="field"><label for="recipe-search">Pesquisar receita</label><input id="recipe-search" type="search" placeholder="Receita ou grupo"></div></div><div id="review-list" class="review-list">${ordered.length?ordered.map(reviewCard).join(''):'<div class="empty-state">Nenhuma receita cadastrada.</div>'}</div></section>`;
+  }
+  function reviewCard(r){
+    return `<article class="review-card" data-review="${r.review_status}" data-search="${esc(`${r.title} ${groupName(r.group_id)}`.toLowerCase())}"><div class="section-head"><div><h3>${esc(r.title)}</h3><p class="muted">${esc(groupName(r.group_id))} · Atualizada ${date(r.updated_at)}</p></div><span class="review-badge review-${r.review_status}">${reviewText[r.review_status]}</span></div><details><summary>Visualizar conteúdo</summary><h4>Ingredientes</h4><p>${esc(r.ingredients).replace(/\n/g,'<br>')}</p><h4>Modo de preparo</h4><p>${esc(r.instructions).replace(/\n/g,'<br>')}</p></details><div class="actions"><button class="btn secondary" data-reviews="${r.id}">Histórico/feedback</button>${r.review_status==='submitted'?`<button class="btn" data-review-action="approved" data-id="${r.id}">Aprovar</button><button class="btn secondary" data-review-action="changes_requested" data-id="${r.id}">Solicitar correções</button>`:''}<button class="btn secondary" data-comment="${r.id}">Comentar</button><button class="btn danger" data-trash="${r.id}">Mover para lixeira</button></div><div id="feedback-${r.id}" class="history-box" hidden></div></article>`;
+  }
+
+  function announcements(){
+    return `<section class="panel"><p class="eyebrow">AVISOS</p><h2>Criar aviso</h2><form id="announcement-form"><input id="announcement-id" type="hidden"><div class="field"><label for="announcement-title">Título</label><input id="announcement-title" maxlength="120" value="Aviso do professor" required></div><div class="field"><label for="announcement-message">Mensagem</label><textarea id="announcement-message" maxlength="2000" required></textarea></div><div class="form-grid"><label class="checklist-item manual"><input id="announcement-published" type="checkbox" checked><span>Publicar agora</span></label><label class="checklist-item manual"><input id="announcement-featured" type="checkbox"><span>Destacar</span></label><div class="field"><label for="announcement-expires">Validade opcional</label><input id="announcement-expires" type="datetime-local"></div></div><div class="actions"><button class="btn" type="submit">Salvar aviso</button><button id="announcement-cancel" class="btn secondary" type="button">Limpar formulário</button></div></form></section><section class="panel"><h2>Avisos cadastrados</h2><div class="responsive-list">${data.announcements.length?data.announcements.map(a=>`<article class="announcement-admin"><div><strong>${esc(a.title)}</strong><p>${esc(a.message)}</p><small>${a.is_published?'Publicado':'Oculto'}${a.is_featured?' · Em destaque':''}${a.expires_at?' · Válido até '+date(a.expires_at):''}</small></div><div class="actions"><button class="btn secondary" data-edit-announcement="${a.id}">Editar</button><button class="btn danger" data-delete-announcement="${a.id}">Excluir</button></div></article>`).join(''):'<div class="empty-state">Nenhum aviso cadastrado.</div>'}</div></section>`;
+  }
+  function historyList(rows){return rows?.length?`<div class="timeline">${rows.map(h=>{const actor=h.actor_name||data.profiles.find(p=>p.id===h.actor_id)?.full_name||h.details?.title||'Sistema';return `<article><time>${date(h.created_at)}</time><div><strong>${esc(actionText[h.action]||h.action)}</strong><small>${esc(actor)}${h.group_id?' · '+esc(groupName(h.group_id)):''}</small></div></article>`}).join('')}</div>`:'<div class="empty-state">Nenhuma atividade registrada.</div>'}
+  function activity(){return `<section class="panel"><p class="eyebrow">AUDITORIA</p><h2>Atividade recente</h2><div class="filter-grid"><div class="field"><label for="history-group">Grupo</label><select id="history-group"><option value="">Todos</option>${data.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select></div><div class="field"><label for="history-action">Tipo</label><select id="history-action"><option value="">Todos</option>${[...new Set(data.recent.map(h=>h.action))].map(a=>`<option value="${esc(a)}">${esc(actionText[a]||a)}</option>`).join('')}</select></div></div><div id="history-list">${historyList(data.recent)}</div><div class="actions"><button class="btn secondary" data-action="history-prev" ${historyOffset===0?'disabled':''}>Anterior</button><button class="btn secondary" data-action="history-next">Próxima página</button></div></section>`}
+  function trash(){return `<section class="panel"><p class="eyebrow">LIXEIRA</p><h2>Receitas excluídas</h2><p class="muted">Restaure quando necessário. A exclusão definitiva exige confirmação reforçada.</p><div class="responsive-list">${data.trash.length?data.trash.map(r=>`<article class="trash-card"><div><strong>${esc(r.title)}</strong><small>${esc(groupName(r.group_id))} · Excluída ${date(r.deleted_at)}</small></div><div class="actions"><button class="btn secondary" data-restore="${r.id}">Restaurar</button><button class="btn danger" data-purge="${r.id}" data-name="${esc(r.title)}">Excluir definitivamente</button></div></article>`).join(''):'<div class="empty-state">A lixeira está vazia.</div>'}</div></section>`}
 
   function bind(){
-    const user=document.querySelector('#uid'),group=document.querySelector('#gid'),call=document.querySelector('#call');
-    const sync=()=>{const profile=profiles.find(item=>item.id===user.value);group.value=profile?.group_id||'';call.value=profile?.call_number??''};
-    user.addEventListener('change',sync);sync();
-    document.querySelector('#saveUser').addEventListener('click',event=>saveUser(event.currentTarget,user,group,call));
-    document.querySelector('#newGroup').addEventListener('submit',createGroup);
-    document.querySelector('#publishAnnouncement').addEventListener('click',event=>publishAnnouncement(event.currentTarget,false));
-    document.querySelector('#clearAnnouncement').addEventListener('click',event=>publishAnnouncement(event.currentTarget,true));
-    document.querySelectorAll('.status-select').forEach(select=>select.addEventListener('change',()=>changeStatus(select)));
-    document.querySelectorAll('.history').forEach(button=>button.addEventListener('click',()=>toggleHistory(button)));
-    document.querySelectorAll('.photo-upload').forEach(button=>button.addEventListener('click',()=>uploadPhoto(button)));
+    root.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>render(b.dataset.tab)));
+    root.onclick=handleClick;root.onchange=handleChange;
+    root.querySelector('#student-search')?.addEventListener('input',filterStudents);root.querySelector('#student-group')?.addEventListener('change',filterStudents);root.querySelector('#student-state')?.addEventListener('change',filterStudents);
+    root.querySelector('#review-filter')?.addEventListener('change',filterReviews);root.querySelector('#recipe-search')?.addEventListener('input',filterReviews);
+    root.querySelector('#announcement-form')?.addEventListener('submit',saveAnnouncement);root.querySelector('#announcement-cancel')?.addEventListener('click',resetAnnouncement);
+    root.querySelector('#history-group')?.addEventListener('change',()=>loadHistory(0));root.querySelector('#history-action')?.addEventListener('change',()=>loadHistory(0));
   }
-
-  async function saveUser(button,user,group,call){
-    const message=document.querySelector('#umsg');const raw=call.value.trim();const number=raw?Number(raw):null;
-    if(number!==null&&(!Number.isInteger(number)||number<1||number>999)){message.textContent='Digite um número entre 1 e 999.';message.className='form-message error-text';return}
-    button.disabled=true;message.textContent='Salvando…';message.className='form-message';
-    try{const result=await BioUI.withTimeout(sb.rpc('manage_profile_classroom',{target_user_id:user.value,new_group_id:group.value||null,new_call_number:number}));if(result.error)throw result.error;message.textContent='Dados salvos.';message.className='form-message success-text';await load()}
-    catch(error){message.textContent=BioUI.friendlyError(error);message.className='form-message error-text';button.disabled=false}
+  function filterStudents(){const search=root.querySelector('#student-search').value.toLowerCase(),group=root.querySelector('#student-group').value,state=root.querySelector('#student-state').value;root.querySelectorAll('#student-list .person-card').forEach(card=>{const match=card.dataset.search.includes(search)&&(!group||card.dataset.group===group)&&(!state||(state==='missing-number'&&card.dataset.number==='missing')||(state==='missing-group'&&card.dataset.group==='none'));card.hidden=!match})}
+  function filterReviews(){const status=root.querySelector('#review-filter').value,search=root.querySelector('#recipe-search').value.toLowerCase();root.querySelectorAll('#review-list .review-card').forEach(card=>card.hidden=!!((status&&card.dataset.review!==status)||!card.dataset.search.includes(search)))}
+  function selected(selector){return [...root.querySelectorAll(selector+':checked')].map(input=>input.value)}
+  function handleChange(event){
+    if(event.target.matches('.student-check')){const count=selected('.student-check').length;root.querySelector('#selected-count').textContent=count;root.querySelector('[data-action="bulk-students"]').disabled=!count}
+    if(event.target.matches('.group-check')){const count=selected('.group-check').length;root.querySelector('#group-selected-count').textContent=count;root.querySelector('[data-action="bulk-groups"]').disabled=!count}
+    if(event.target.matches('[data-check-item]'))updateChecklist(event.target);
   }
-  async function createGroup(event){
-    event.preventDefault();const button=event.submitter;const message=document.querySelector('#gmsg');button.disabled=true;
-    try{const result=await BioUI.withTimeout(sb.from('groups').insert({name:document.querySelector('#gn').value.trim(),slug:document.querySelector('#gs').value.trim(),description:document.querySelector('#gd').value.trim()}));if(result.error)throw result.error;await load()}
-    catch(error){message.textContent=BioUI.friendlyError(error);message.className='form-message error-text';button.disabled=false}
+  async function handleClick(event){
+    const button=event.target.closest('button,[data-edit-student],[data-edit-group]');if(!button)return;
+    if(button.dataset.action==='refresh')return load();if(button.dataset.action==='export')return exportCsv();if(button.dataset.action==='bulk-students')return bulkStudents(button);if(button.dataset.action==='bulk-groups')return bulkGroups(button);
+    if(button.dataset.action==='history-prev')return loadHistory(Math.max(0,historyOffset-25));if(button.dataset.action==='history-next')return loadHistory(historyOffset+25);
+    if(button.dataset.control)return classroomControl(button);if(button.dataset.editStudent)return editStudent(button.dataset.editStudent);if(button.dataset.deleteAccount)return deleteAccount(button);
+    if(button.dataset.editGroup)return editGroup(button.dataset.editGroup);if(button.dataset.reviewAction)return reviewAction(button);if(button.dataset.reviews)return showReviews(button.dataset.reviews);if(button.dataset.comment)return commentRecipe(button.dataset.comment);
+    if(button.dataset.trash)return simpleAction(button,'soft_delete_recipe',{p_recipe_id:button.dataset.trash},'Receita movida para a lixeira.');if(button.dataset.restore)return simpleAction(button,'restore_recipe',{p_recipe_id:button.dataset.restore},'Receita restaurada.');if(button.dataset.purge)return purgeRecipe(button);
+    if(button.dataset.editAnnouncement)return editAnnouncement(button.dataset.editAnnouncement);if(button.dataset.deleteAnnouncement)return deleteAnnouncement(button);
   }
-  async function publishAnnouncement(button,clear){
-    const field=document.querySelector('#announcement');const message=document.querySelector('#announcementMsg');if(clear)field.value='';button.disabled=true;
-    try{const result=await BioUI.withTimeout(sb.rpc('set_announcement',{new_announcement:field.value}));if(result.error)throw result.error;message.textContent=clear?'Aviso removido.':'Aviso publicado para a turma.';message.className='form-message success-text'}
-    catch(error){message.textContent=BioUI.friendlyError(error);message.className='form-message error-text'}finally{button.disabled=false}
+  async function simpleAction(button,name,args,message){setBusy(button,true);try{await rpc(name,args);toast(message);await load()}catch(error){toast(BioUI.friendlyError(error),'error');setBusy(button,false)}}
+  async function classroomControl(button){const label={lock:'bloquear todas as edições',unlock:'liberar as edições',finalize:'FINALIZAR toda a atividade'}[button.dataset.control];if(!confirm(`Confirma ${label}?`))return;await simpleAction(button,'set_classroom_control',{p_action:button.dataset.control},'Controle da atividade atualizado.')}
+  async function bulkStudents(button){const ids=selected('.student-check'),group=root.querySelector('#bulk-group').value||null;if(!confirm(`${group?'Mover':'Remover'} ${ids.length} aluno(s) ${group?'para '+groupName(group):'dos grupos'}?`))return;await simpleAction(button,'bulk_assign_students',{p_user_ids:ids,p_group_id:group},`${ids.length} aluno(s) atualizados.`)}
+  async function bulkGroups(button){const ids=selected('.group-check'),action=root.querySelector('#bulk-group-action').value;if(!confirm(`Aplicar esta ação a ${ids.length} grupo(s)?`))return;await simpleAction(button,'bulk_group_action',{p_group_ids:ids,p_action:action},'Grupos atualizados.')}
+  async function updateChecklist(input){input.disabled=true;try{await rpc('set_checklist_item',{p_group_id:input.dataset.groupId,p_item_key:input.dataset.checkItem,p_completed:input.checked});toast('Checklist atualizado.');await load()}catch(error){input.checked=!input.checked;input.disabled=false;toast(BioUI.friendlyError(error),'error')}}
+  async function editStudent(id){const p=data.profiles.find(x=>x.id===id);if(!p)return;const name=prompt('Nome completo:',p.full_name||'');if(name===null)return;const number=prompt('Número da chamada (vazio para remover):',p.call_number??'');if(number===null)return;const group=prompt(`ID do grupo (vazio para sem grupo):\n${data.groups.map(g=>`${g.name}: ${g.id}`).join('\n')}`,p.group_id||'');if(group===null)return;try{await rpc('manage_profile_extended',{p_user_id:id,p_name:name,p_group_id:group||null,p_call_number:number===''?null:Number(number)});toast('Aluno atualizado.');await load()}catch(error){toast(BioUI.friendlyError(error),'error')}}
+  async function editGroup(id){const g=data.groups.find(x=>x.id===id);const name=prompt('Nome/tema do grupo:',g.name);if(name===null)return;const description=prompt('Descrição:',g.description||'');if(description===null)return;try{await rpc('set_group_details',{p_group_id:id,p_name:name,p_description:description});toast('Grupo atualizado.');await load()}catch(error){toast(BioUI.friendlyError(error),'error')}}
+  async function reviewAction(button){let message=null;if(button.dataset.reviewAction==='changes_requested'){message=prompt('Explique claramente o que precisa ser corrigido:');if(!message)return}await simpleAction(button,'transition_recipe_review',{p_recipe_id:button.dataset.id,p_action:button.dataset.reviewAction,p_message:message},button.dataset.reviewAction==='approved'?'Receita aprovada.':'Correções solicitadas.')}
+  async function commentRecipe(id){const message=prompt('Comentário pedagógico:');if(!message)return;try{await rpc('add_teacher_comment',{p_recipe_id:id,p_message:message});toast('Comentário registrado.');await showReviews(id,true)}catch(error){toast(BioUI.friendlyError(error),'error')}}
+  async function showReviews(id,force=false){const box=root.querySelector('#feedback-'+CSS.escape(id));if(!box)return;if(!force){box.hidden=!box.hidden;if(box.hidden)return}box.hidden=false;box.innerHTML='<p>Carregando…</p>';try{const rows=await rpc('get_recipe_reviews',{p_recipe_id:id});box.innerHTML=rows.length?rows.map(r=>`<div class="history-item"><span><strong>${esc(reviewText[r.event_type]||r.event_type)}</strong>${r.message?`<p>${esc(r.message)}</p>`:''}</span><small>${esc(r.author_name)} · ${date(r.created_at)}</small></div>`).join(''):'<p class="muted">Sem feedback registrado.</p>'}catch(error){box.innerHTML=`<p class="error-text">${esc(BioUI.friendlyError(error))}</p>`}}
+  async function deleteAccount(button){const expected=button.dataset.name;const typed=prompt(`Esta ação exclui a conta de ${expected}. Digite o nome exatamente para confirmar:`);if(typed!==expected){if(typed!==null)toast('Confirmação não corresponde ao nome.','error');return}await simpleAction(button,'delete_student_account',{target_user_id:button.dataset.deleteAccount},'Conta excluída.')}
+  async function purgeRecipe(button){const typed=prompt(`Digite EXCLUIR para apagar definitivamente “${button.dataset.name}”:`);if(typed!=='EXCLUIR')return;await simpleAction(button,'purge_recipe',{p_recipe_id:button.dataset.purge},'Receita excluída definitivamente.')}
+  function resetAnnouncement(){root.querySelector('#announcement-form').reset();root.querySelector('#announcement-id').value='';root.querySelector('#announcement-title').value='Aviso do professor';root.querySelector('#announcement-published').checked=true}
+  function editAnnouncement(id){const a=data.announcements.find(x=>x.id===id);root.querySelector('#announcement-id').value=id;root.querySelector('#announcement-title').value=a.title;root.querySelector('#announcement-message').value=a.message;root.querySelector('#announcement-published').checked=a.is_published;root.querySelector('#announcement-featured').checked=a.is_featured;root.querySelector('#announcement-expires').value=a.expires_at?new Date(a.expires_at).toISOString().slice(0,16):'';root.querySelector('#announcement-title').focus()}
+  async function saveAnnouncement(event){event.preventDefault();const button=event.submitter;setBusy(button,true);try{await rpc('save_announcement',{p_id:root.querySelector('#announcement-id').value||null,p_title:root.querySelector('#announcement-title').value,p_message:root.querySelector('#announcement-message').value,p_published:root.querySelector('#announcement-published').checked,p_featured:root.querySelector('#announcement-featured').checked,p_expires_at:root.querySelector('#announcement-expires').value?new Date(root.querySelector('#announcement-expires').value).toISOString():null});toast('Aviso salvo.');await load()}catch(error){toast(BioUI.friendlyError(error),'error');setBusy(button,false)}}
+  async function deleteAnnouncement(button){if(!confirm('Mover este aviso para a lixeira interna?'))return;await simpleAction(button,'delete_announcement',{p_id:button.dataset.deleteAnnouncement},'Aviso removido.')}
+  async function loadHistory(offset){historyOffset=offset;const box=root.querySelector('#history-list');box.innerHTML='<div class="loading-state">Carregando histórico…</div>';try{const rows=await rpc('get_activity_history',{p_group_id:root.querySelector('#history-group').value||null,p_action:root.querySelector('#history-action').value||null,p_offset:offset,p_limit:25});box.innerHTML=historyList(rows);root.querySelector('[data-action="history-prev"]').disabled=offset===0;root.querySelector('[data-action="history-next"]').disabled=rows.length<25}catch(error){box.innerHTML=`<p class="error-text">${esc(BioUI.friendlyError(error))}</p>`}}
+  function exportCsv(){
+    const rows=[['Nome','Número','Grupo','Tema','Status do grupo','Receitas','Estado de revisão','Checklist']];
+    data.profiles.filter(p=>p.role==='student').forEach(p=>{const g=data.groups.find(x=>x.id===p.group_id),recipes=data.recipes.filter(r=>r.group_id===p.group_id),items=g?data.checklist.filter(i=>i.group_id===g.id):[];rows.push([p.full_name,p.call_number??'',g?.name||'',g?.description||'',g?statusText[g.activity_status]:'',recipes.map(r=>r.title).join(' | '),recipes.map(r=>reviewText[r.review_status]).join(' | '),g?`${items.filter(i=>checklistState(g,i)).length}/${items.length}`:''])});
+    const csv='\ufeff'+rows.map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`atividade-biologia-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);toast('CSV exportado.')
   }
-  async function changeStatus(select){
-    select.disabled=true;
-    try{const result=await BioUI.withTimeout(sb.rpc('set_group_status',{target_group_id:select.dataset.id,new_status:select.value}));if(result.error)throw result.error;await load()}
-    catch(error){alert(BioUI.friendlyError(error));select.disabled=false}
-  }
-  async function toggleHistory(button){
-    const box=document.querySelector('#history-'+button.dataset.id);box.hidden=!box.hidden;if(box.hidden)return;box.innerHTML='<p>Carregando histórico…</p>';
-    try{const result=await BioUI.withTimeout(sb.rpc('get_group_history',{target_group_id:button.dataset.id}));if(result.error)throw result.error;box.innerHTML=result.data?.length?result.data.map(item=>`<div class="history-item"><strong>${esc(historyLabel[item.action]||item.action)}</strong><small>${new Date(item.created_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})}</small></div>`).join(''):'<p class="muted">Nenhuma alteração registrada.</p>'}
-    catch(error){box.innerHTML='<p class="error-text">'+esc(BioUI.friendlyError(error))+'</p>'}
-  }
-  async function uploadPhoto(button){
-    const input=document.querySelector(`.photo-file[data-id="${button.dataset.id}"]`);const file=input.files[0];const allowed=['image/jpeg','image/png','image/webp'];
-    if(!file){alert('Escolha uma imagem primeiro.');return}if(!allowed.includes(file.type)){alert('Use uma imagem JPG, PNG ou WebP.');return}if(file.size>5*1024*1024){alert('A imagem deve ter no máximo 5 MB.');return}
-    const ext={"image/jpeg":'jpg',"image/png":'png',"image/webp":'webp'}[file.type];const path=`${button.dataset.id}/${Date.now()}.${ext}`;button.disabled=true;button.textContent='Enviando…';
-    try{const upload=await BioUI.withTimeout(sb.storage.from('activity-photos').upload(path,file,{upsert:false,contentType:file.type}));if(upload.error)throw upload.error;const url=sb.storage.from('activity-photos').getPublicUrl(path).data.publicUrl;const result=await BioUI.withTimeout(sb.rpc('set_group_photo',{target_group_id:button.dataset.id,new_photo_url:url}));if(result.error){await sb.storage.from('activity-photos').remove([path]);throw result.error}await load()}
-    catch(error){alert(BioUI.friendlyError(error));button.disabled=false;button.textContent='Enviar foto'}
-  }
-  async function changeRole(button){
-    const label=button.dataset.role==='teacher'?'tornar este usuário professor':'tornar este professor aluno';if(!confirm(`Confirma ${label}?`))return;button.disabled=true;
-    try{const result=await BioUI.withTimeout(sb.rpc('set_user_role_classroom',{target_user_id:button.dataset.id,new_role:button.dataset.role}));if(result.error)throw result.error;await load()}
-    catch(error){alert(BioUI.friendlyError(error));button.disabled=false}
-  }
-  async function deleteAccount(button){
-    if(!confirm(`Excluir permanentemente a conta de ${button.dataset.name}? Esta ação não pode ser desfeita.`))return;button.disabled=true;
-    try{const result=await BioUI.withTimeout(sb.rpc('delete_student_account',{target_user_id:button.dataset.id}));if(result.error)throw result.error;await load()}
-    catch(error){alert(BioUI.friendlyError(error));button.disabled=false}
-  }
-  load();
+  document.addEventListener('classroom:changed',()=>{clearTimeout(window.__teacherReload);window.__teacherReload=setTimeout(()=>load(),700)});
+  load(false);
 })();
