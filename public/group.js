@@ -14,38 +14,59 @@
   };
   const reviewLabels={draft:'Rascunho',submitted:'Enviado para revisão',changes_requested:'Correções solicitadas',approved:'Aprovado'};
   let group=null,recipes=[],profile=null,members=[],settings={edits_locked:false,activity_finalized:false};
+  let profileLoaded=false,realtimeReady=false,refreshTimer=null,loading=false,lastLoadedAt=0,viewerId=null;
 
-  async function load(){
-    root.innerHTML='<section class="panel loading-state">Carregando grupo…</section>';
-    try{
-      const me=await BioAuth.profile();
-      profile=me.profile;
-      const groupResult=await BioUI.withTimeout(
-        sb.from('groups').select('id,name,slug,description,activity_status,photo_url').eq('slug',slug).maybeSingle()
-      );
-      if(groupResult.error)throw groupResult.error;
-      if(!groupResult.data)throw new Error('Grupo não encontrado.');
-      group=groupResult.data;
-
-      const recipesRequest=BioUI.withTimeout(
-        sb.from('recipes').select('id,group_id,title,ingredients,instructions,notes,updated_by,created_at,updated_at,is_locked,review_status,row_version').eq('group_id',group.id).order('updated_at',{ascending:false})
-      );
-      const settingsRequest=BioUI.withTimeout(sb.from('classroom_settings').select('edits_locked,activity_finalized').eq('id',1).maybeSingle());
-      const maySeeMembers=profile&&!profile.is_anonymous&&(profile.role==='teacher'||profile.group_id===group.id);
-      const membersRequest=maySeeMembers
-        ?BioUI.withTimeout(sb.rpc('get_group_members',{target_group_id:group.id}))
-        :Promise.resolve({data:[],error:null});
-      const[recipeResult,memberResult,settingsResult]=await Promise.all([recipesRequest,membersRequest,settingsRequest]);
-      if(recipeResult.error)throw recipeResult.error;
-      if(memberResult.error)throw memberResult.error;
-      if(settingsResult.error)throw settingsResult.error;
-      recipes=recipeResult.data||[];members=memberResult.data||[];settings=settingsResult.data||settings;
-      render(maySeeMembers);
-    }catch(error){
-      root.innerHTML='<section class="panel error-state"><strong>Não foi possível carregar este grupo.</strong><p>'+esc(BioUI.friendlyError(error))+'</p><button class="btn" id="retry">Tentar novamente</button></section>';
-      document.querySelector('#retry')?.addEventListener('click',load);
-    }
+  function showRefreshError(error){
+    document.querySelector('#group-refresh-error')?.remove();
+    const notice=document.createElement('div');notice.id='group-refresh-error';notice.className='note error';notice.setAttribute('role','status');
+    notice.textContent=BioUI.friendlyError(error,'Não foi possível atualizar. Os dados anteriores foram mantidos.');
+    root.prepend(notice);setTimeout(()=>notice.remove(),5000);
   }
+
+  async function load(preserve=false){
+    if(loading)return;
+    loading=true;
+    if(!preserve)root.innerHTML='<section class="panel loading-state">Carregando grupo…</section>';
+    try{
+      const profileRequest=profileLoaded?Promise.resolve({profile}):BioAuth.profile();
+      const pageRequest=BioUI.withTimeout(sb.rpc('get_group_page',{p_slug:slug}));
+      const[me,pageResult]=await Promise.all([profileRequest,pageRequest]);
+      if(pageResult.error)throw pageResult.error;
+      if(!pageResult.data?.group)throw new Error('Grupo não encontrado.');
+      profile=me.profile;viewerId=me.user?.id||viewerId;profileLoaded=true;
+      group=pageResult.data.group;recipes=pageResult.data.recipes||[];members=pageResult.data.members||[];settings=pageResult.data.settings||settings;
+      const maySeeMembers=profile&&!profile.is_anonymous&&(profile.role==='teacher'||profile.group_id===group.id);
+      render(maySeeMembers);
+      lastLoadedAt=Date.now();
+      setupRealtime();
+    }catch(error){
+      if(preserve){showRefreshError(error);return}
+      root.innerHTML='<section class="panel error-state"><strong>Não foi possível carregar este grupo.</strong><p>'+esc(BioUI.friendlyError(error))+'</p><button class="btn" id="retry">Tentar novamente</button></section>';
+      document.querySelector('#retry')?.addEventListener('click',()=>load(false));
+    }finally{loading=false}
+  }
+
+  function setupRealtime(){
+    if(realtimeReady)return;
+    realtimeReady=true;
+    Classroom.subscribe('group',[
+      {table:'groups',filter:`id=eq.${group.id}`},
+      {table:'recipes',filter:`group_id=eq.${group.id}`},
+      {table:'profiles'},
+      {table:'classroom_settings',filter:'id=eq.1'},
+      {table:'announcements'}
+    ],({table,payload})=>{
+      if(table==='announcements')return;
+      if(table==='profiles'&&[payload.new?.id,payload.old?.id].includes(viewerId))profileLoaded=false;
+      clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{
+        if(Date.now()-lastLoadedAt>=800)load(true);
+      },450);
+    });
+  }
+
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&Date.now()-lastLoadedAt>30000)load(true);
+  });
 
   function render(maySeeMembers){
     const isTeacher=profile?.role==='teacher'&&!profile.is_anonymous;
@@ -55,7 +76,7 @@
     const photo=BioUI.photoUrl(group.photo_url);
     root.innerHTML=`
       <section class="group-hero panel reveal is-visible">
-        ${photo?`<img class="group-hero-photo" src="${esc(photo)}" alt="Foto do trabalho de ${esc(group.name)}">`:''}
+        ${photo?`<img class="group-hero-photo" src="${esc(photo)}" alt="Foto do trabalho de ${esc(group.name)}" decoding="async">`:''}
         <div class="group-hero-copy">
           <p class="eyebrow">ATIVIDADE PRÁTICA</p>
           <div class="section-head"><h1>${esc(group.name)}</h1><span class="status-pill status-${group.activity_status}">${status[0]} ${status[1]}</span></div>

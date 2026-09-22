@@ -1,16 +1,19 @@
 (()=>{
   let clockTimer=null;
-  let realtimeChannel=null;
+  const channels=new Map();
+  const subscriptions=new Map();
+
   function startClock(){
     if(clockTimer)return;
-    const update=()=>document.querySelectorAll('[data-brasilia-clock]').forEach(element=>{
-      element.textContent=new Intl.DateTimeFormat('pt-BR',{
-        timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
-      }).format(new Date());
+    const formatter=new Intl.DateTimeFormat('pt-BR',{
+      timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
     });
-    update();
-    clockTimer=setInterval(update,1000);
+    const update=()=>document.querySelectorAll('[data-brasilia-clock]').forEach(element=>{
+      element.textContent=formatter.format(new Date());
+    });
+    update();clockTimer=setInterval(update,1000);
   }
+
   async function announcement(target='#class-announcement'){
     const root=document.querySelector(target);
     if(!root)return;
@@ -20,47 +23,59 @@
       );
       if(result.error)throw result.error;
       if(!result.data?.message){root.replaceChildren();return}
-      const box=document.createElement('div');
-      box.className='announcement reveal is-visible';
-      const icon=document.createElement('span');
-      icon.className='announcement-icon';
-      icon.setAttribute('aria-hidden','true');
-      icon.textContent='📢';
+      const box=document.createElement('div');box.className='announcement reveal is-visible';
+      const icon=document.createElement('span');icon.className='announcement-icon';icon.setAttribute('aria-hidden','true');icon.textContent='📢';
       const content=document.createElement('div');
-      const title=document.createElement('strong');
-      title.textContent=result.data.title||'Aviso do professor';
-      const text=document.createElement('p');
-      text.textContent=result.data.message;
-      const date=document.createElement('small');
-      date.textContent='Atualizado em '+new Date(result.data.updated_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
-      content.append(title,text,date);
-      box.append(icon,content);
-      root.replaceChildren(box);
+      const title=document.createElement('strong');title.textContent=result.data.title||'Aviso do professor';
+      const text=document.createElement('p');text.textContent=result.data.message;
+      const date=document.createElement('small');date.textContent='Atualizado em '+new Date(result.data.updated_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+      content.append(title,text,date);box.append(icon,content);root.replaceChildren(box);
     }catch(error){
       root.innerHTML='<div class="note error">'+BioUI.escape(BioUI.friendlyError(error,'Não foi possível carregar o aviso.'))+'</div>';
     }
   }
-  function notify(table){
-    document.dispatchEvent(new CustomEvent('classroom:changed',{detail:{table}}));
-    if(document.body.dataset.groupSlug&&['groups','recipes','profiles'].includes(table)){
-      clearTimeout(window.__groupRealtimeReload);
-      window.__groupRealtimeReload=setTimeout(()=>location.reload(),500);
-    }
-  }
-  function realtime(){
-    if(realtimeChannel)return;
-    realtimeChannel=sb.channel('classroom-live')
-      .on('postgres_changes',{event:'*',schema:'public',table:'classroom_settings'},()=>{announcement();notify('classroom_settings')})
-      .on('postgres_changes',{event:'*',schema:'public',table:'announcements'},()=>{announcement();notify('announcements')})
-      .on('postgres_changes',{event:'*',schema:'public',table:'recipe_reviews'},()=>notify('recipe_reviews'))
-      .on('postgres_changes',{event:'*',schema:'public',table:'groups'},()=>notify('groups'))
-      .on('postgres_changes',{event:'*',schema:'public',table:'recipes'},()=>notify('recipes'))
-      .on('postgres_changes',{event:'*',schema:'public',table:'profiles'},()=>notify('profiles'))
-      .subscribe(status=>{
-        if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')document.dispatchEvent(new CustomEvent('classroom:offline'));
+
+  function connect(name,specs,onChange){
+    if(channels.has(name))return channels.get(name);
+    let channel=sb.channel('classroom-'+name);
+    specs.forEach(spec=>{
+      const config={event:spec.event||'*',schema:'public',table:spec.table};
+      if(spec.filter)config.filter=spec.filter;
+      channel=channel.on('postgres_changes',config,payload=>{
+        if(spec.table==='announcements')announcement();
+        onChange?.({table:spec.table,payload});
       });
+    });
+    channel.subscribe(status=>{
+      if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')document.dispatchEvent(new CustomEvent('classroom:offline'));
+    });
+    channels.set(name,channel);
+    return channel;
   }
-  function init(){startClock();announcement();realtime();window.BioEffects?.observe()}
-  window.Classroom={startClock,announcement,realtime};
+
+  function subscribe(name,specs,onChange){
+    subscriptions.set(name,{specs,onChange});
+    return connect(name,specs,onChange);
+  }
+
+  function unsubscribe(name){
+    const channel=channels.get(name);
+    subscriptions.delete(name);
+    if(channel){channels.delete(name);sb.removeChannel(channel)}
+  }
+
+  function cleanup(){
+    channels.forEach(channel=>sb.removeChannel(channel));channels.clear();
+    if(clockTimer){clearInterval(clockTimer);clockTimer=null}
+  }
+
+  function restore(){
+    startClock();subscriptions.forEach(({specs,onChange},name)=>connect(name,specs,onChange));
+  }
+
+  function init(){startClock();announcement();window.BioEffects?.observe()}
+  window.Classroom={startClock,announcement,subscribe,unsubscribe};
+  window.addEventListener('pagehide',cleanup);
+  window.addEventListener('pageshow',event=>{if(event.persisted)restore()});
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init,{once:true}):init();
 })();

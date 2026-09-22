@@ -12,7 +12,7 @@ for(const file of htmlFiles){
   check(!html.includes('Receitas-INF1A-02'),`${file}: referência ao repositório antigo`);
   check(html.includes('Content-Security-Policy'),`${file}: CSP ausente`);
   check(!/<script(?![^>]+src=)/i.test(html),`${file}: script inline encontrado`);
-  check(!/\?v=(?!4\.0\.0)/.test(html),`${file}: cache busting inconsistente`);
+  check(!/\?v=(?!4\.[01]\.0)/.test(html),`${file}: cache busting inconsistente`);
 }
 for(const file of ['login/index.html','cadastro/index.html','perfil/index.html','professor/index.html','apresentacao/index.html']){
   check(/name="robots" content="noindex,nofollow"/.test(read(file)),`${file}: noindex ausente`);
@@ -31,9 +31,12 @@ for(const feature of ['teacher_dashboard_snapshot','bulk_assign_students','bulk_
 const group=read('public/group.js');
 check(group.includes('save_recipe_versioned'),'Edição de receita sem controle otimista');
 check(group.includes('transition_recipe_review'),'Workflow de revisão ausente na página do grupo');
+check(group.includes('get_group_page'),'Página de grupo sem bootstrap agregado');
+check(!group.includes('location.reload()'),'Página de grupo ainda usa reload completo');
+check(!read('public/classroom.js').includes("table:'recipe_reviews'"),'Listener global desnecessário de revisões');
 check(read('public/presentation.js').includes('get_public_classroom_state'),'Modo apresentação sem estado público seguro');
 const migrations=readdirSync(new URL('supabase/migrations/',root)).map(name=>read('supabase/migrations/'+name)).join('\n');
-for(const required of ['enable row level security','teacher_dashboard_snapshot','private.require_teacher','recipe_reviews','group_checklist','announcements']){
+for(const required of ['enable row level security','teacher_dashboard_snapshot','private.require_teacher','recipe_reviews','group_checklist','announcements','get_group_page']){
   check(migrations.includes(required),`Migration administrativa não contém ${required}`);
 }
 

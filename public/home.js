@@ -10,7 +10,7 @@
     review:['🟡','Em revisão'],
     completed:['🟢','Finalizado']
   };
-  let loading=false;
+  let loading=false,refreshTimer=null,lastLoadedAt=0;
 
   function element(tag,className,text){
     const node=document.createElement(tag);
@@ -69,6 +69,7 @@
       if(result.error)throw result.error;
       const data=result.data||[];
       renderProgress(data);renderGroups(data);
+      lastLoadedAt=Date.now();
       lastUpdate.textContent='Atualizado às '+new Intl.DateTimeFormat('pt-BR',{
         timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
       }).format(new Date());
@@ -89,7 +90,19 @@
       account.innerHTML='<div class="note"><strong>Acesso anônimo</strong><p>Você pode consultar grupos e receitas. Para editar, entre com uma conta cadastrada e organizada pelo professor.</p></div>';
     }
   }
-  document.addEventListener('classroom:changed',render);
+  function scheduleRefresh(){
+    clearTimeout(refreshTimer);
+    refreshTimer=setTimeout(render,400);
+  }
   document.addEventListener('classroom:offline',()=>{lastUpdate.textContent='Reconectando…'});
+  Classroom.subscribe('home',[
+    {table:'groups'},
+    {table:'recipes'},
+    {table:'profiles'},
+    {table:'announcements'}
+  ],({table})=>{if(table!=='announcements')scheduleRefresh()});
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&Date.now()-lastLoadedAt>30000)scheduleRefresh();
+  });
   renderAccount();render();
 })();

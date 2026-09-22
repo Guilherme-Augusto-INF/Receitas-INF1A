@@ -5,7 +5,8 @@
   const statusText={not_started:'Não iniciado',in_progress:'Em andamento',review:'Em revisão',completed:'Finalizado'};
   const reviewText={draft:'Rascunho',submitted:'Enviado para revisão',changes_requested:'Correções solicitadas',approved:'Aprovado'};
   const actionText={profile_updated:'Perfil alterado',students_bulk_moved:'Alunos movidos',group_updated:'Grupo alterado',checklist_updated:'Checklist atualizado',recipe_submitted:'Receita enviada',recipe_approved:'Receita aprovada',recipe_changes_requested:'Correções solicitadas',teacher_comment_added:'Comentário do professor',classroom_lock:'Edições bloqueadas',classroom_unlock:'Edições liberadas',classroom_finalize:'Atividade finalizada',announcement_saved:'Aviso salvo',announcement_deleted:'Aviso removido',recipe_trashed:'Receita enviada à lixeira',recipe_restored:'Receita restaurada',recipe_purged:'Receita excluída definitivamente',status_changed:'Status alterado',recipe_created:'Receita criada',recipe_updated:'Receita atualizada'};
-  let data=null,active='dashboard',historyOffset=0;
+  let data=null,viewer=null,active='dashboard',historyOffset=0;
+  let loading=false,realtimeReady=false,refreshTimer=null,lastLoadedAt=0;
 
   const groupName=id=>data?.groups.find(group=>group.id===id)?.name||'Sem grupo';
   const date=value=>value?new Date(value).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—';
@@ -18,24 +19,52 @@
   const setBusy=(button,busy,label='Processando…')=>{if(!button)return;button.disabled=busy;if(busy){button.dataset.label=button.textContent;button.textContent=label}else if(button.dataset.label){button.textContent=button.dataset.label;delete button.dataset.label}};
 
   async function load(keepTab=true){
+    if(loading)return;
+    loading=true;
     root.setAttribute('aria-busy','true');
     if(!data)root.innerHTML='<section class="panel loading-state">Carregando central de gerenciamento…</section>';
+    else root.querySelector('#teacher-sync')?.replaceChildren('Atualizando…');
     try{
-      const me=await BioAuth.profile();
+      const me=viewer||await BioAuth.profile();
       if(!me.user){location.href='../login/';return}
       if(me.error||me.profile?.role!=='teacher'||me.profile?.is_anonymous){root.innerHTML='<section class="panel error-state"><h2>Acesso negado</h2><p>Esta área é exclusiva para professores autorizados.</p><a class="btn secondary" href="../">Voltar</a></section>';return}
+      viewer=me;
       data=await rpc('teacher_dashboard_snapshot');
       render(keepTab?active:'dashboard');
-    }catch(error){root.innerHTML=`<section class="panel error-state"><h2>Não foi possível carregar o painel</h2><p>${esc(BioUI.friendlyError(error))}</p><button id="retry" class="btn">Tentar novamente</button></section>`;document.querySelector('#retry')?.addEventListener('click',()=>load())}
-    finally{root.removeAttribute('aria-busy')}
+      lastLoadedAt=Date.now();setupRealtime();
+    }catch(error){
+      if(data)toast(BioUI.friendlyError(error),'error');
+      else{root.innerHTML=`<section class="panel error-state"><h2>Não foi possível carregar o painel</h2><p>${esc(BioUI.friendlyError(error))}</p><button id="retry" class="btn">Tentar novamente</button></section>`;document.querySelector('#retry')?.addEventListener('click',()=>load())}
+    }finally{loading=false;root.removeAttribute('aria-busy')}
   }
+
+  function setupRealtime(){
+    if(realtimeReady)return;
+    realtimeReady=true;
+    Classroom.subscribe('teacher',[
+      {table:'profiles'},
+      {table:'groups'},
+      {table:'recipes'},
+      {table:'classroom_settings',filter:'id=eq.1'},
+      {table:'announcements'}
+    ],({table,payload})=>{
+      if(table==='profiles'&&[payload.new?.id,payload.old?.id].includes(viewer?.user?.id))viewer=null;
+      clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{
+        if(Date.now()-lastLoadedAt>=900)load();
+      },600);
+    });
+  }
+
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&Date.now()-lastLoadedAt>30000)load();
+  });
 
   function render(tab){
     active=tab;
     const tabs=[['dashboard','Visão geral'],['students','Alunos'],['groups','Grupos'],['reviews','Revisões'],['announcements','Avisos'],['activity','Atividade'],['trash','Lixeira']];
     root.innerHTML=`<div id="panel-status" class="sr-only" aria-live="polite"></div>
       <nav class="teacher-tabs panel" aria-label="Seções da central">${tabs.map(([id,label])=>`<button class="teacher-tab ${id===active?'active':''}" data-tab="${id}" aria-current="${id===active?'page':'false'}">${label}</button>`).join('')}</nav>
-      <div class="teacher-toolbar panel"><div><strong>${esc(data.settings.activity_name)}</strong><small>${data.settings.activity_finalized?'Atividade finalizada':data.settings.edits_locked?'Edições bloqueadas':'Edições liberadas'}</small></div><div class="actions"><a class="btn secondary" href="../apresentacao/" target="_blank" rel="noopener">Modo apresentação</a><button class="btn secondary" data-action="export">Exportar CSV</button><button class="btn secondary" data-action="refresh">Atualizar</button></div></div>
+      <div class="teacher-toolbar panel"><div><strong>${esc(data.settings.activity_name)}</strong><small>${data.settings.activity_finalized?'Atividade finalizada':data.settings.edits_locked?'Edições bloqueadas':'Edições liberadas'} · <span id="teacher-sync">Atualizado agora</span></small></div><div class="actions"><a class="btn secondary" href="../apresentacao/" target="_blank" rel="noopener">Modo apresentação</a><button class="btn secondary" data-action="export">Exportar CSV</button><button class="btn secondary" data-action="refresh">Atualizar</button></div></div>
       <section id="teacher-content">${section(active)}</section>`;
     bind();Classroom?.startClock();BioEffects?.observe();
   }
@@ -148,6 +177,5 @@
     data.profiles.filter(p=>p.role==='student').forEach(p=>{const g=data.groups.find(x=>x.id===p.group_id),recipes=data.recipes.filter(r=>r.group_id===p.group_id),items=g?data.checklist.filter(i=>i.group_id===g.id):[];rows.push([p.full_name,p.call_number??'',g?.name||'',g?.description||'',g?statusText[g.activity_status]:'',recipes.map(r=>r.title).join(' | '),recipes.map(r=>reviewText[r.review_status]).join(' | '),g?`${items.filter(i=>checklistState(g,i)).length}/${items.length}`:''])});
     const csv='\ufeff'+rows.map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`atividade-biologia-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);toast('CSV exportado.')
   }
-  document.addEventListener('classroom:changed',()=>{clearTimeout(window.__teacherReload);window.__teacherReload=setTimeout(()=>load(),700)});
   load(false);
 })();
