@@ -77,3 +77,17 @@ Medição no mesmo navegador remoto, esperando o principal elemento de dados de 
 - RLS/RPC: anônimo não recebe integrantes; aluno recebe integrantes do próprio grupo e não de outro; receitas em soft delete não aparecem; RPC de professor continua negada ao aluno.
 - Realtime em produção: subscriptions filtradas confirmadas na tabela interna e removidas ao sair da página.
 - Home, login, cadastro, redirecionamentos protegidos, Grupo 1 e modo apresentação validados no GitHub Pages, sem erro de aplicação no console.
+
+## Segunda rodada — bootstrap consolidado
+
+Uma nova auditoria em 22/09/2026 encontrou dois round trips ainda elimináveis nas páginas de grupo: o perfil mínimo do visitante e o aviso atual eram buscados separadamente, embora `get_group_page` já consultasse o visitante para autorizar integrantes.
+
+| Fluxo | Antes | Depois |
+|---|---:|---:|
+| Grupo público, leituras REST iniciais | 2 | 1 |
+| Grupo autenticado, leituras REST iniciais | 3 | 1 |
+| Perfil autenticado, leituras REST | 2 sequenciais | 1 |
+
+`get_group_page('grupo-1')` passou de 306 para 470 bytes no banco (+164 bytes), porque agora inclui o aviso público e quatro campos mínimos do próprio visitante. O `EXPLAIN ANALYZE` passou de 3,861 ms para 4,306 ms (+0,445 ms). Esse pequeno custo no PostgreSQL elimina respostas HTTP completas e, principalmente, dois períodos de latência de rede no celular.
+
+O relógio de Brasília também passou a suspender o `setInterval` quando a aba fica oculta. Nenhum índice, policy RLS ou subscription foi adicionado: os planos e o volume atual continuam não justificando essas mudanças.

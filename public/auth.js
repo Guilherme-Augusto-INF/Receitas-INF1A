@@ -14,7 +14,7 @@
       if(!current.session)return{profile:null,user:null,error:current.error};
       try{
         const{data,error}=await BioUI.withTimeout(
-          sb.from('profiles').select('id,full_name,role,group_id,is_anonymous,call_number').eq('id',current.session.user.id).maybeSingle()
+          sb.from('profiles').select('id,full_name,role,group_id,is_anonymous,call_number,group:groups(name,slug)').eq('id',current.session.user.id).maybeSingle()
         );
         return{profile:data||null,user:current.session.user,error};
       }catch(error){return{profile:null,user:current.session.user,error}}

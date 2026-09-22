@@ -12,7 +12,7 @@ for(const file of htmlFiles){
   check(!html.includes('Receitas-INF1A-02'),`${file}: referência ao repositório antigo`);
   check(html.includes('Content-Security-Policy'),`${file}: CSP ausente`);
   check(!/<script(?![^>]+src=)/i.test(html),`${file}: script inline encontrado`);
-  check(!/\?v=(?!4\.[01]\.0)/.test(html),`${file}: cache busting inconsistente`);
+  check(!/\?v=(?!4\.[012]\.0)/.test(html),`${file}: cache busting inconsistente`);
 }
 for(const file of ['login/index.html','cadastro/index.html','perfil/index.html','professor/index.html','apresentacao/index.html']){
   check(/name="robots" content="noindex,nofollow"/.test(read(file)),`${file}: noindex ausente`);
@@ -32,8 +32,15 @@ const group=read('public/group.js');
 check(group.includes('save_recipe_versioned'),'Edição de receita sem controle otimista');
 check(group.includes('transition_recipe_review'),'Workflow de revisão ausente na página do grupo');
 check(group.includes('get_group_page'),'Página de grupo sem bootstrap agregado');
+check(group.includes('pageResult.data.viewer'),'Página de grupo ainda depende de uma consulta separada de perfil');
+check(group.includes('pageResult.data.announcement'),'Página de grupo ainda depende de uma consulta inicial separada de aviso');
+check(!group.includes('BioAuth.profile()'),'Página de grupo ainda carrega perfil fora do bootstrap');
 check(!group.includes('location.reload()'),'Página de grupo ainda usa reload completo');
-check(!read('public/classroom.js').includes("table:'recipe_reviews'"),'Listener global desnecessário de revisões');
+const classroom=read('public/classroom.js');
+check(!classroom.includes("table:'recipe_reviews'"),'Listener global desnecessário de revisões');
+check(classroom.includes('document.body.dataset.groupSlug'),'Aviso inicial do grupo ainda pode gerar request duplicado');
+check(classroom.includes('document.hidden&&clockTimer'),'Relógio continua ativo em aba oculta');
+check(read('public/auth.js').includes('group:groups(name,slug)'),'Perfil ainda requer consulta sequencial do grupo');
 check(read('public/presentation.js').includes('get_public_classroom_state'),'Modo apresentação sem estado público seguro');
 const migrations=readdirSync(new URL('supabase/migrations/',root)).map(name=>read('supabase/migrations/'+name)).join('\n');
 for(const required of ['enable row level security','teacher_dashboard_snapshot','private.require_teacher','recipe_reviews','group_checklist','announcements','get_group_page']){

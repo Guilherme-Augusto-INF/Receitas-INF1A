@@ -14,6 +14,19 @@
     update();clockTimer=setInterval(update,1000);
   }
 
+  function renderAnnouncement(data,target='#class-announcement'){
+    const root=document.querySelector(target);
+    if(!root)return;
+    if(!data?.message){root.replaceChildren();return}
+    const box=document.createElement('div');box.className='announcement reveal is-visible';
+    const icon=document.createElement('span');icon.className='announcement-icon';icon.setAttribute('aria-hidden','true');icon.textContent='📢';
+    const content=document.createElement('div');
+    const title=document.createElement('strong');title.textContent=data.title||'Aviso do professor';
+    const text=document.createElement('p');text.textContent=data.message;
+    const date=document.createElement('small');date.textContent='Atualizado em '+new Date(data.updated_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+    content.append(title,text,date);box.append(icon,content);root.replaceChildren(box);
+  }
+
   async function announcement(target='#class-announcement'){
     const root=document.querySelector(target);
     if(!root)return;
@@ -22,14 +35,7 @@
         sb.from('announcements').select('title,message,updated_at').eq('is_published',true).is('deleted_at',null).order('is_featured',{ascending:false}).order('updated_at',{ascending:false}).limit(1).maybeSingle()
       );
       if(result.error)throw result.error;
-      if(!result.data?.message){root.replaceChildren();return}
-      const box=document.createElement('div');box.className='announcement reveal is-visible';
-      const icon=document.createElement('span');icon.className='announcement-icon';icon.setAttribute('aria-hidden','true');icon.textContent='📢';
-      const content=document.createElement('div');
-      const title=document.createElement('strong');title.textContent=result.data.title||'Aviso do professor';
-      const text=document.createElement('p');text.textContent=result.data.message;
-      const date=document.createElement('small');date.textContent='Atualizado em '+new Date(result.data.updated_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
-      content.append(title,text,date);box.append(icon,content);root.replaceChildren(box);
+      renderAnnouncement(result.data,target);
     }catch(error){
       root.innerHTML='<div class="note error">'+BioUI.escape(BioUI.friendlyError(error,'Não foi possível carregar o aviso.'))+'</div>';
     }
@@ -73,9 +79,13 @@
     startClock();subscriptions.forEach(({specs,onChange},name)=>connect(name,specs,onChange));
   }
 
-  function init(){startClock();announcement();window.BioEffects?.observe()}
-  window.Classroom={startClock,announcement,subscribe,unsubscribe};
+  function init(){startClock();if(!document.body.dataset.groupSlug)announcement();window.BioEffects?.observe()}
+  window.Classroom={startClock,announcement,renderAnnouncement,subscribe,unsubscribe};
   window.addEventListener('pagehide',cleanup);
   window.addEventListener('pageshow',event=>{if(event.persisted)restore()});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden&&clockTimer){clearInterval(clockTimer);clockTimer=null}
+    else if(!document.hidden)startClock();
+  });
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init,{once:true}):init();
 })();

@@ -10,13 +10,7 @@
       root.innerHTML='<section class="panel error-state"><strong>Não foi possível carregar seu perfil.</strong><p>'+esc(BioUI.friendlyError(me.error,'Seu perfil ainda não está disponível.'))+'</p><button class="btn" id="retry">Tentar novamente</button></section>';
       document.querySelector('#retry')?.addEventListener('click',load);return;
     }
-    let group=null;
-    if(me.profile.group_id){
-      try{
-        const result=await BioUI.withTimeout(sb.from('groups').select('name,slug').eq('id',me.profile.group_id).maybeSingle());
-        if(!result.error)group=result.data;
-      }catch{}
-    }
+    const group=me.profile.group||null;
     const profile=me.profile;
     const editable=!profile.is_anonymous;
     root.innerHTML=`<section class="panel reveal is-visible"><p class="eyebrow">MINHA CONTA</p><h2>Dados do perfil</h2>
