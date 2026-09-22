@@ -84,3 +84,5 @@ O QR Code canônico está disponível em `public/qr-code.svg` e `public/qr-code.
 O inventário, os achados, a matriz de permissões, os testes negativos e a avaliação de prontidão estão em [`AUDIT-V3.md`](AUDIT-V3.md).
 
 A evolução do painel, o workflow de revisão e os testes de segurança estão em [`AUDIT-TEACHER-CENTER.md`](AUDIT-TEACHER-CENTER.md).
+
+A medição antes/depois, os gargalos encontrados e as decisões de otimização estão em [`PERFORMANCE-AUDIT.md`](PERFORMANCE-AUDIT.md).
