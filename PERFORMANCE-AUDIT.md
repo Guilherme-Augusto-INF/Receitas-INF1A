@@ -91,3 +91,5 @@ Uma nova auditoria em 22/09/2026 encontrou dois round trips ainda elimináveis n
 `get_group_page('grupo-1')` passou de 306 para 470 bytes no banco (+164 bytes), porque agora inclui o aviso público e quatro campos mínimos do próprio visitante. O `EXPLAIN ANALYZE` passou de 3,861 ms para 4,306 ms (+0,445 ms). Esse pequeno custo no PostgreSQL elimina respostas HTTP completas e, principalmente, dois períodos de latência de rede no celular.
 
 O relógio de Brasília também passou a suspender o `setInterval` quando a aba fica oculta. Nenhum índice, policy RLS ou subscription foi adicionado: os planos e o volume atual continuam não justificando essas mudanças.
+
+Produção foi validada após o commit `4f19ba2`: os assets `v4.2.0` foram servidos pelo GitHub Pages, a Home exibiu os 6 grupos, o Grupo 1 carregou grupo e aviso pelo novo bootstrap, Perfil e Professor redirecionaram visitantes sem sessão para Login e não houve erro da aplicação no console. O endpoint público respondeu `200` com 440 bytes pelo PostgREST real.
