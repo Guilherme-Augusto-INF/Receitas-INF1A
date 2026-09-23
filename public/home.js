@@ -47,7 +47,7 @@
       const stats=element('div','mini-stats');
       stats.append(element('span','',`Integrantes: ${group.member_count}`),element('span','',`Receitas: ${group.recipe_count}`));
       const link=element('a','btn secondary','Ver grupo');
-      link.href=encodeURIComponent(group.slug)+'/';
+      link.href='grupo/?slug='+encodeURIComponent(group.slug);
       link.setAttribute('aria-label',`Abrir ${group.name}`);
       article.append(top,title,description,stats,link);
       fragment.append(article);
