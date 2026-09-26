@@ -35,6 +35,15 @@ O `vercel.json` foi mantido apenas como compatibilidade histórica. Vercel não 
 - Envia fotos JPG, PNG ou WebP de até 5 MiB.
 - Exclui contas de alunos com confirmação; não pode excluir a própria conta nem outra conta de professor.
 
+### Colaboração: texto, Forms e frases
+
+- Integrantes autenticados podem cadastrar e editar o texto e o link do formulário do próprio grupo enquanto a atividade estiver aberta.
+- Todos podem consultar os formulários publicados e as frases compartilhadas entre os grupos.
+- Limite de 30 frases por grupo, com prevenção de duplicatas feita no banco (maiúsculas, acentos, espaços e pontuação final).
+- Integrantes removem frases do próprio grupo; professores podem gerenciar todos os grupos.
+- Alunos não alteram outros grupos nem editam após bloqueio/finalização. Visitantes anônimos consultam sem editar.
+- Migration `20260926124921_shared_group_phrases_and_form_editing.sql`.
+
 ### Acesso anônimo
 
 O acesso anônimo é somente para consulta. Ele não pode editar perfil, receitas, status, avisos, fotos ou contas e não aparece na lista do professor.

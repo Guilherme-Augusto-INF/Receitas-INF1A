@@ -12,7 +12,7 @@ for(const file of htmlFiles){
   check(!html.includes('Receitas-INF1A-02'),`${file}: referência ao repositório antigo`);
   check(html.includes('Content-Security-Policy'),`${file}: CSP ausente`);
   check(!/<script(?![^>]+src=)/i.test(html),`${file}: script inline encontrado`);
-  check(!/\?v=(?!4\.[012]\.0)/.test(html),`${file}: cache busting inconsistente`);
+  check(!/\?v=(?!4\.[0-9]+\.0)/.test(html),`${file}: cache busting inconsistente`);
 }
 for(const file of ['login/index.html','cadastro/index.html','perfil/index.html','professor/index.html','apresentacao/index.html']){
   check(/name="robots" content="noindex,nofollow"/.test(read(file)),`${file}: noindex ausente`);
@@ -28,7 +28,15 @@ const teacher=read('public/teacher.js');
 for(const feature of ['teacher_dashboard_snapshot','bulk_assign_students','bulk_group_action','transition_recipe_review','set_checklist_item','save_announcement','soft_delete_recipe','restore_recipe','get_activity_history']){
   check(teacher.includes(feature),`Painel do professor não referencia ${feature}`);
 }
+const collab=read('public/group-collab.js');
+for(const name of [...htmlFiles.filter(name=>name.startsWith('grupo-')),'grupo/index.html']){
+  check(read(name).includes('group-collab.js?v=4.5.0'),name+': modulo colaborativo ausente');
+}
+for(const feature of ['set_group_form','add_group_phrase','remove_group_phrase','group:groups(name)']){
+  check(collab.includes(feature),'Modulo colaborativo nao referencia '+feature);
+}
 const group=read('public/group.js');
+check(group.includes('GroupCollab.mount'),'Integracao colaborativa ausente');
 check(group.includes('save_recipe_versioned'),'Edição de receita sem controle otimista');
 check(group.includes('transition_recipe_review'),'Workflow de revisão ausente na página do grupo');
 check(group.includes('get_group_page'),'Página de grupo sem bootstrap agregado');
@@ -47,5 +55,8 @@ for(const required of ['enable row level security','teacher_dashboard_snapshot',
   check(migrations.includes(required),`Migration administrativa não contém ${required}`);
 }
 
+for(const required of ['group_phrases','enable row level security','add_group_phrase','remove_group_phrase']){
+  check(migrations.includes(required),'Migration compartilhada ausente: '+required);
+}
 if(failures.length){console.error(failures.join('\n'));process.exit(1)}
 console.log(`PASS: ${htmlFiles.length} páginas e metadados estáticos validados.`);

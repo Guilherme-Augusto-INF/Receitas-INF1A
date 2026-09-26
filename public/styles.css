@@ -99,3 +99,22 @@ html.dark .top{background:rgba(12,23,19,.96)}html.dark .field input,html.dark .f
 }
 @media(max-width:360px){.class-progress-grid,.stats-grid{grid-template-columns:1fr}.wrap{padding-inline:10px}.panel,.card{padding:16px}.brand{font-size:.9rem}.theme-toggle{font-size:.8rem}.top-actions .btn{padding-inline:10px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.reveal,.btn{transition:none!important}.effects-ready .reveal:not(.is-visible){opacity:1;transform:none}.scroll-progress{display:none}}
+
+/* Formularios e frases colaborativos */
+.form-publication{padding:16px;margin:14px 0;border:1px solid var(--border);border-radius:12px;background:var(--surface-soft)}
+.form-publication p{overflow-wrap:anywhere;margin-top:0}
+.group-form-details{margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:12px}
+.group-form-details summary{cursor:pointer;font-weight:800;min-height:36px}
+.form-stack{margin-top:16px}
+.phrase-form{margin:20px 0 16px;padding:15px;background:var(--surface-soft);border:1px solid var(--border);border-radius:12px}
+.phrase-form label{display:block;font-weight:800;margin-bottom:8px}
+.phrase-input-row{display:flex;gap:10px;align-items:stretch}
+.phrase-input-row input{flex:1;min-width:0;min-height:46px;padding:10px 12px;border:1px solid #aebfb7;border-radius:9px;background:var(--surface);color:var(--text)}
+.phrase-input-row input:focus{outline:3px solid rgba(23,107,77,.16);border-color:var(--primary)}
+.phrase-form small{display:block;margin-top:8px}
+.phrase-list{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.phrase-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px;border:1px solid var(--border);border-radius:10px;background:var(--surface-soft);overflow-wrap:anywhere}
+.phrase-item>div{min-width:0}
+.phrase-item strong,.phrase-item small{display:block}.phrase-item small{color:var(--muted);margin-top:4px}
+.phrase-item button{flex-shrink:0}
+@media(max-width:600px){.phrase-input-row{flex-direction:column}.phrase-item{align-items:flex-start;flex-wrap:wrap}}

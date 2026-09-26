@@ -10,7 +10,7 @@
   const historyLabels={
     status_changed:'Status alterado',recipe_created:'Receita criada',recipe_updated:'Receita atualizada',
     recipe_deleted:'Receita excluída',recipe_locked:'Receita bloqueada',recipe_unlocked:'Receita reaberta',
-    photo_changed:'Foto alterada',announcement_changed:'Aviso alterado',group_form_updated:'Formulário do grupo atualizado'
+    photo_changed:'Foto alterada',announcement_changed:'Aviso alterado',group_form_updated:'Formulário do grupo atualizado',group_phrase_created:'Frase cadastrada',group_phrase_removed:'Frase removida'
   };
   const reviewLabels={draft:'Rascunho',submitted:'Enviado para revisão',changes_requested:'Correções solicitadas',approved:'Aprovado'};
   let group=null,recipes=[],profile=null,members=[],settings={edits_locked:false,activity_finalized:false};
@@ -54,8 +54,10 @@
       {table:'recipes',filter:`group_id=eq.${group.id}`},
       {table:'profiles'},
       {table:'classroom_settings',filter:'id=eq.1'},
-      {table:'announcements'}
+      {table:'announcements'},
+      {table:'group_phrases'}
     ],({table,payload})=>{
+      if(table==='group_phrases'){GroupCollab.refreshPhrases();return}
       if(table==='announcements')return;
       clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{
         if(Date.now()-lastLoadedAt>=800)load(true);
@@ -66,11 +68,6 @@
   document.addEventListener('visibilitychange',()=>{
     if(!document.hidden&&Date.now()-lastLoadedAt>30000)load(true);
   });
-
-  function groupFormPanel(){
-    if(!group?.form_text||!group?.form_url)return '';
-    return `<section class="panel reveal"><p class="eyebrow">FORMULÁRIO DO TEMA</p><div class="section-head"><div><h2>Atividade obrigatória para toda a turma</h2><p class="muted">Todos os alunos da turma devem responder este formulário para composição da nota.</p></div><span class="status-pill status-review">Obrigatório</span></div><p>${esc(group.form_text).replace(/\n/g,'<br>')}</p><div class="actions"><a class="btn" href="${esc(group.form_url)}" target="_blank" rel="noopener noreferrer">Abrir formulário</a></div></section>`;
-  }
 
   function render(maySeeMembers){
     const isTeacher=profile?.role==='teacher'&&!profile.is_anonymous;
@@ -88,7 +85,7 @@
           <div class="mini-stats"><span>Integrantes: ${members.length}</span><span>Receitas: ${recipes.length}</span></div>
         </div>
       </section>
-      ${groupFormPanel()}
+      ${GroupCollab.panels({group,profile,settings})}
       ${group.activity_status==='completed'?'<div class="status success-banner"><strong>Atividade finalizada.</strong> As receitas estão bloqueadas até o professor reabrir o grupo.</div>':''}
       ${(settings.edits_locked||settings.activity_finalized)&&!isTeacher?'<div class="note"><strong>Edições bloqueadas pelo professor.</strong> Você ainda pode consultar as receitas e os feedbacks.</div>':''}
       ${profile?.is_anonymous?'<div class="note">O acesso anônimo é somente para consulta. Entre com uma conta cadastrada para editar.</div>':''}
@@ -105,6 +102,7 @@
       ${isTeacher?teacherControls():''}`;
     renderRecipes({isTeacher,canEditContent});
     bindControls({isTeacher,canEditContent});
+    GroupCollab.mount({group,profile,settings});
     Classroom?.startClock();BioEffects?.observe();
   }
 
