@@ -42,7 +42,7 @@ O `vercel.json` foi mantido apenas como compatibilidade histórica. Vercel não 
 - Limite de 30 frases por grupo, com prevenção de duplicatas feita no banco (maiúsculas, acentos, espaços e pontuação final).
 - Integrantes removem frases do próprio grupo; professores podem gerenciar todos os grupos.
 - Alunos não alteram outros grupos nem editam após bloqueio/finalização. Visitantes anônimos consultam sem editar.
-- Migration `20260926130000_shared_group_phrases_and_form_editing.sql`.
+- Migration `20260926124921_shared_group_phrases_and_form_editing.sql`.
 
 ### Acesso anônimo
 

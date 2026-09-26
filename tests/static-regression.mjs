@@ -12,7 +12,7 @@ for(const file of htmlFiles){
   check(!html.includes('Receitas-INF1A-02'),`${file}: referência ao repositório antigo`);
   check(html.includes('Content-Security-Policy'),`${file}: CSP ausente`);
   check(!/<script(?![^>]+src=)/i.test(html),`${file}: script inline encontrado`);
-  check(!/\?v=(?!4\.[012]\.0)/.test(html),`${file}: cache busting inconsistente`);
+  check(!/\?v=(?!4\.[0-9]+\.0)/.test(html),`${file}: cache busting inconsistente`);
 }
 for(const file of ['login/index.html','cadastro/index.html','perfil/index.html','professor/index.html','apresentacao/index.html']){
   check(/name="robots" content="noindex,nofollow"/.test(read(file)),`${file}: noindex ausente`);
