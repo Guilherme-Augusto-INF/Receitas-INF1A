@@ -12,7 +12,7 @@
   };
   let loading=false,refreshTimer=null,lastLoadedAt=0;
   // Carrega uma unica vez o carrossel visual sem introduzir HTML ou CSS estatico.
-  const carouselUrl=new URL('home-carousel.js?v=4.9.0',document.currentScript?.src||new URL('public/home.js',location.href)).href;
+  const carouselUrl=new URL('home-carousel.js?v=4.10.0',document.currentScript?.src||new URL('public/home.js',location.href)).href;
   let carousel=null,carouselData=null;
   function mountCarousel(){
     const loader=document.createElement('script');
