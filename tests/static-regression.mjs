@@ -31,7 +31,7 @@ check(!home.includes("element('button','btn danger','Sair')"),'A tela inicial ai
 check(!home.includes("BioAuth.signOut()"),'A tela inicial ainda oferece logout fora do perfil');
 check(profile.includes('id="logout"') && profile.includes('BioAuth.signOut()'),'Logout ausente do perfil');
 check(/\.logout-wrap\{[^}]*justify-content:flex-end/.test(css),'Logout do perfil nao esta alinhado a direita');
-check(read('index.html').includes('home.js?v=4.10.0'),'Home com script em cache antigo');
+check(read('index.html').includes('home.js?v=4.11.0'),'Home com script em cache antigo');
 check(read('index.html').includes('styles.css?v=4.7.0'),'Home com CSS em cache antigo');
 check(css.includes('#nav > .btn.danger{display:none!important}'),'Logout antigo da home nao possui bloqueio visual de seguranca');
 check(read('perfil/index.html').includes('styles.css?v=4.6.0'),'Perfil com estilos em cache antigo');
@@ -41,15 +41,19 @@ for(const feature of ['teacher_dashboard_snapshot','bulk_assign_students','bulk_
 }
 const carousel=read('public/home-carousel.js');
 check(carousel.includes('AUTO_ADVANCE_MS=4000'),'Carrossel deve passar a cada 4 segundos');
-check(carousel.includes('setTimeout(()=>show(index+1,false),Math.max(1,AUTO_ADVANCE_MS-elapsed))'),'Rotacao nao respeita os 4 s restantes');
-check(carousel.includes('const FADE_MS=680'),'Crossfade suave ausente');
-check(carousel.includes('bio-carousel-timebar-fill'),'Barra de progresso visual ausente');
-check(carousel.includes('drawTime(elapsed+performance.now()-startedAt)'),'Progresso visual nao sincronizado');
+check(carousel.includes('setTimeout(()=>show(index+1,false,1),Math.max(1,AUTO_ADVANCE_MS-elapsed))'),'Rotacao nao respeita os 4 s restantes');
+check(carousel.includes('const TRANSITION_MS=780'),'Animacao cinematografica de transicao ausente');
+check(carousel.includes("el('img','bio-carousel-image')"),'Dupla imagem para transicao nao encontrada');
+check(carousel.includes("element.animate("),'Animacao de legenda nao encontrada');
+check(carousel.includes("stage.addEventListener('pointermove'"),'Efeito de iluminacao suave ausente');
+check(carousel.includes('bio-carousel-kicker') && carousel.includes('bio-carousel-counter'),'Sobreposicao premium ausente');
+check(carousel.includes('bio-carousel-timeline-fill'),'Barra de progresso visual ausente');
+check(carousel.includes('progress(elapsed+performance.now()-startedAt)'),'Progresso visual nao sincronizado');
 check(carousel.includes('requestAnimationFrame(tick)'),'Barra de tempo nao atualiza suavemente');
-check(carousel.includes("prev.addEventListener('click',()=>move(-1,true))"),'Seta anterior indisponivel');
-check(carousel.includes("next.addEventListener('click',()=>move(1,true))"),'Proxima seta indisponivel');
+check(carousel.includes("prev.addEventListener('click',()=>show(index-1,true,-1))"),'Seta anterior indisponivel');
+check(carousel.includes("next.addEventListener('click',()=>show(index+1,true,1))"),'Proxima seta indisponivel');
 check(carousel.includes('pauseButton.addEventListener'),'Controle de pausa nao encontrado');
-check(read('public/home.js').includes('home-carousel.js?v=4.10.0'),'Modulo de carrossel pode estar em cache');
+check(read('public/home.js').includes('home-carousel.js?v=4.11.0'),'Modulo de carrossel pode estar em cache');
 check(read('index.html').includes('home.js?v=4.10.0'),'JS da homepage pode estar em cache');
 const collab=read('public/group-collab.js');
 for(const name of [...htmlFiles.filter(name=>name.startsWith('grupo-')),'grupo/index.html']){
