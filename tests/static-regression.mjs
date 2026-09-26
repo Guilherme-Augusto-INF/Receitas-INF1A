@@ -24,6 +24,15 @@ check(read('sitemap.xml').includes('/Receitas-INF1A/grupo-6/'),'Sitemap da raiz 
 check(!/login|perfil|professor/.test(read('sitemap.xml')),'Sitemap da raiz contém rota privada');
 check(read('robots.txt').includes('/Receitas-INF1A/sitemap.xml'),'Robots da raiz não aponta para o sitemap canônico');
 check(read('robots.txt').includes('/Receitas-INF1A/professor/'),'Robots da raiz não restringe rotas administrativas');
+const home=read('public/home.js');
+const profile=read('public/profile.js');
+const css=read('public/styles.css');
+check(!home.includes("element('button','btn danger','Sair')"),'A tela inicial ainda mostra botao Sair');
+check(!home.includes("BioAuth.signOut()"),'A tela inicial ainda oferece logout fora do perfil');
+check(profile.includes('id="logout"') && profile.includes('BioAuth.signOut()'),'Logout ausente do perfil');
+check(/\\.logout-wrap\\{[^}]*justify-content:flex-end/.test(css),'Logout do perfil nao esta alinhado a direita');
+check(read('index.html').includes('home.js?v=4.6.0'),'Home com script em cache antigo');
+check(read('perfil/index.html').includes('styles.css?v=4.6.0'),'Perfil com estilos em cache antigo');
 const teacher=read('public/teacher.js');
 for(const feature of ['teacher_dashboard_snapshot','bulk_assign_students','bulk_group_action','transition_recipe_review','set_checklist_item','save_announcement','soft_delete_recipe','restore_recipe','get_activity_history']){
   check(teacher.includes(feature),`Painel do professor não referencia ${feature}`);
