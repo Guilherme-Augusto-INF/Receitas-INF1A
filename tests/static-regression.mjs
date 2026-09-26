@@ -30,7 +30,7 @@ const css=read('public/styles.css');
 check(!home.includes("element('button','btn danger','Sair')"),'A tela inicial ainda mostra botao Sair');
 check(!home.includes("BioAuth.signOut()"),'A tela inicial ainda oferece logout fora do perfil');
 check(profile.includes('id="logout"') && profile.includes('BioAuth.signOut()'),'Logout ausente do perfil');
-check(/\\.logout-wrap\\{[^}]*justify-content:flex-end/.test(css),'Logout do perfil nao esta alinhado a direita');
+check(/\.logout-wrap\{[^}]*justify-content:flex-end/.test(css),'Logout do perfil nao esta alinhado a direita');
 check(read('index.html').includes('home.js?v=4.6.0'),'Home com script em cache antigo');
 check(read('perfil/index.html').includes('styles.css?v=4.6.0'),'Perfil com estilos em cache antigo');
 const teacher=read('public/teacher.js');
