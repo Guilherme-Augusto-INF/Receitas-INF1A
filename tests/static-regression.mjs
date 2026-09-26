@@ -31,7 +31,9 @@ check(!home.includes("element('button','btn danger','Sair')"),'A tela inicial ai
 check(!home.includes("BioAuth.signOut()"),'A tela inicial ainda oferece logout fora do perfil');
 check(profile.includes('id="logout"') && profile.includes('BioAuth.signOut()'),'Logout ausente do perfil');
 check(/\.logout-wrap\{[^}]*justify-content:flex-end/.test(css),'Logout do perfil nao esta alinhado a direita');
-check(read('index.html').includes('home.js?v=4.6.0'),'Home com script em cache antigo');
+check(read('index.html').includes('home.js?v=4.7.0'),'Home com script em cache antigo');
+check(read('index.html').includes('styles.css?v=4.7.0'),'Home com CSS em cache antigo');
+check(css.includes('#nav > .btn.danger{display:none!important}'),'Logout antigo da home nao possui bloqueio visual de seguranca');
 check(read('perfil/index.html').includes('styles.css?v=4.6.0'),'Perfil com estilos em cache antigo');
 const teacher=read('public/teacher.js');
 for(const feature of ['teacher_dashboard_snapshot','bulk_assign_students','bulk_group_action','transition_recipe_review','set_checklist_item','save_announcement','soft_delete_recipe','restore_recipe','get_activity_history']){

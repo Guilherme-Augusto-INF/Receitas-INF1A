@@ -118,3 +118,7 @@ html.dark .top{background:rgba(12,23,19,.96)}html.dark .field input,html.dark .f
 .phrase-item strong,.phrase-item small{display:block}.phrase-item small{color:var(--muted);margin-top:4px}
 .phrase-item button{flex-shrink:0}
 @media(max-width:600px){.phrase-input-row{flex-direction:column}.phrase-item{align-items:flex-start;flex-wrap:wrap}}
+
+/* Defesa: nunca exibir um logout antigo na navegacao da pagina inicial.
+   A unica saida do sistema continua no perfil. */
+#nav > .btn.danger{display:none!important}
