@@ -11,6 +11,20 @@
     completed:['🟢','Finalizado']
   };
   let loading=false,refreshTimer=null,lastLoadedAt=0;
+  // Carrega uma unica vez o carrossel visual sem introduzir HTML ou CSS estatico.
+  const carouselUrl=new URL('home-carousel.js?v=4.8.0',document.currentScript?.src||new URL('public/home.js',location.href)).href;
+  let carousel=null,carouselData=null;
+  function mountCarousel(){
+    const loader=document.createElement('script');
+    loader.src=carouselUrl;
+    loader.async=true;
+    loader.addEventListener('load',()=>{
+      carousel=window.BioHomeCarousel?.mount(document.querySelector('main .hero'))||null;
+      if(carouselData?.length)carousel?.updateGroups(carouselData);
+    });
+    loader.addEventListener('error',()=>console.warn('Nao foi possivel carregar o carrossel de Biologia.'));
+    document.head.append(loader);
+  }
 
   function element(tag,className,text){
     const node=document.createElement(tag);
@@ -69,6 +83,7 @@
       if(result.error)throw result.error;
       const data=result.data||[];
       renderProgress(data);renderGroups(data);
+      carouselData=data;carousel?.updateGroups(data);
       lastLoadedAt=Date.now();
       lastUpdate.textContent='Atualizado às '+new Intl.DateTimeFormat('pt-BR',{
         timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
@@ -103,5 +118,5 @@
   document.addEventListener('visibilitychange',()=>{
     if(!document.hidden&&Date.now()-lastLoadedAt>30000)scheduleRefresh();
   });
-  renderAccount();render();
+  mountCarousel();renderAccount();render();
 })();
