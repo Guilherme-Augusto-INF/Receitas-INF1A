@@ -6,6 +6,7 @@
   'use strict';
   if(window.BioHomeCarousel)return;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
+  const AUTO_ADVANCE_MS=5000;
   const DEFAULT_GROUPS=[
     ['grupo-1','Grupo 1 — Água'],
     ['grupo-2','Grupo 2 — Vitaminas'],
@@ -202,6 +203,10 @@
       '.bio-carousel-prev:hover,.bio-carousel-next:hover{background:rgba(10,35,36,.86)}.bio-carousel-prev{left:9px}.bio-carousel-next{right:9px}',
       '.bio-carousel-footer{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 5px 0}.bio-carousel-dot{width:9px;height:9px;padding:0;border:0;border-radius:100px;background:var(--border,#a6a6a6);cursor:pointer;transition:width .25s,background .25s}',
       '.bio-carousel-dot[aria-current=true]{width:25px;background:var(--primary,#4fab87)}.bio-carousel-dot:focus-visible,.bio-carousel-prev:focus-visible,.bio-carousel-next:focus-visible{outline:3px solid var(--focus,#f4efce);outline-offset:3px}',
+      '.bio-carousel-controls{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;column-gap:13px;row-gap:2px}',
+      '.bio-carousel-toggle{font:inherit;font-size:.81rem;font-weight:750;padding:5px 9px;min-height:36px;border:1px solid var(--border,#a6a6a6);border-radius:9px;background:var(--surface,#fff);color:var(--text,#16382d);cursor:pointer}',
+      '.bio-carousel-toggle:hover{background:var(--surface-soft,#eef6f2)}.bio-carousel-toggle:focus-visible{outline:3px solid var(--focus,#f4efce);outline-offset:2px}',
+      '.bio-carousel-toggle[hidden]{display:none}',
       '.bio-carousel-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}',
       '@media(max-width:640px){.hero.bio-hero-layout{grid-template-columns:1fr}.bio-carousel-stage{height:clamp(210px,51vw,290px)}.hero .bio-hero-text h1{font-size:clamp(2rem,8vw,3rem)}}',
       '@media(max-width:360px){.bio-carousel-stage{height:210px}.bio-carousel-caption{padding:38px 17px 12px}.bio-carousel-caption strong{font-size:1.05rem}}',
@@ -236,17 +241,28 @@
     const prev=el('button','bio-carousel-prev','‹');const next=el('button','bio-carousel-next','›');
     prev.type=next.type='button';prev.setAttribute('aria-label','Grupo anterior');next.setAttribute('aria-label','Próximo grupo');
     const dots=el('div','bio-carousel-footer');dots.setAttribute('role','group');dots.setAttribute('aria-label','Selecionar grupo');
+    const pauseButton=el('button','bio-carousel-toggle','Pausar');
+    pauseButton.type='button';pauseButton.setAttribute('aria-label','Pausar passagem automática dos grupos');
+    const controls=el('div','bio-carousel-controls');controls.append(dots,pauseButton);
     const status=el('span','bio-carousel-status');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
-    stage.append(picture,prev,next);section.append(stage,dots,status);
+    stage.append(picture,prev,next);section.append(stage,controls,status);
     hero.classList.add('bio-hero-layout');hero.append(text,section);
 
-    let slides=DEFAULT_GROUPS,index=0,timer=null,changeTimer=null,hover=false,focused=false,paused=false;
+    let slides=DEFAULT_GROUPS,index=0,timer=null,changeTimer=null,paused=false;
     let signature='';
-    function canRotate(){return !hover&&!focused&&!paused&&!document.hidden&&!reduced.matches&&slides.length>1;}
-    function stop(){clearInterval(timer);timer=null;}
+    function canRotate(){return !paused&&!document.hidden&&!reduced.matches&&slides.length>1;}
+    function stop(){clearTimeout(timer);timer=null;}
+    // A contagem comeca quando a imagem termina de aparecer: 5 s completos
+    // para cada grupo, inclusive depois de uma navegacao manual.
     function restart(){
       stop();
-      if(canRotate())timer=setInterval(()=>move(1,false),5200);
+      if(canRotate())timer=setTimeout(()=>move(1,false),AUTO_ADVANCE_MS);
+    }
+    function updatePauseButton(){
+      pauseButton.hidden=reduced.matches;
+      pauseButton.textContent=paused?'Retomar':'Pausar';
+      pauseButton.setAttribute('aria-label',paused?'Retomar passagem automática dos grupos':'Pausar passagem automática dos grupos');
+      pauseButton.setAttribute('aria-pressed',String(paused));
     }
     function drawDots(){
       dots.replaceChildren();
@@ -271,9 +287,11 @@
       [...dots.children].forEach((dot,pos)=>dot.setAttribute('aria-current',String(i===pos)));
       if(announce)status.textContent=item.name+' — '+(i+1)+' de '+slides.length;
       stage.classList.remove('changing');
+      restart();
     }
     function show(target,announce){
       if(!slides.length)return;
+      stop();
       const dest=(target%slides.length+slides.length)%slides.length;
       clearTimeout(changeTimer);
       if(dest===index&&image.src){if(announce)status.textContent=slides[dest].name;restart();return;}
@@ -282,16 +300,16 @@
         stage.classList.add('changing');
         changeTimer=setTimeout(()=>finish(index,announce),175);
       }else finish(index,announce);
-      restart();
     }
     function move(delta,announce){show(index+delta,announce);}
     prev.addEventListener('click',()=>move(-1,true));
     next.addEventListener('click',()=>move(1,true));
-    section.addEventListener('mouseenter',()=>{hover=true;stop();});
-    section.addEventListener('mouseleave',()=>{hover=false;restart();});
-    section.addEventListener('focusin',()=>{focused=true;stop();});
-    section.addEventListener('focusout',()=>{
-      queueMicrotask(()=>{focused=section.contains(document.activeElement);restart();});
+    // Passagem automatica continua apos usar as setas, mesmo que elas
+    // mantenham foco ou o cursor esteja sobre o carrossel.
+    pauseButton.addEventListener('click',()=>{
+      paused=!paused;
+      updatePauseButton();
+      restart();
     });
     section.addEventListener('keydown',event=>{
       if(event.key==='ArrowLeft'){event.preventDefault();move(-1,true);}
@@ -306,7 +324,7 @@
     });
     picture.addEventListener('click',event=>{if(suppressClick)event.preventDefault();});
     document.addEventListener('visibilitychange',restart);
-    if(reduced.addEventListener)reduced.addEventListener('change',restart);
+    if(reduced.addEventListener)reduced.addEventListener('change',()=>{updatePauseButton();restart();});
 
     function updateGroups(items){
       if(!Array.isArray(items)||!items.length)return;
@@ -319,10 +337,10 @@
       const oldSlug=slides[index]?.slug;
       signature=nextSig;slides=nextItems;
       index=Math.max(0,slides.findIndex(item=>item.slug===oldSlug));
-      drawDots();image.removeAttribute('src');finish(index,false);restart();
+      drawDots();image.removeAttribute('src');finish(index,false);
     }
     controller={updateGroups,pause(){paused=true;stop();},resume(){paused=false;restart();}};
-    drawDots();finish(0,false);restart();return controller;
+    drawDots();updatePauseButton();finish(0,false);return controller;
   }
   window.BioHomeCarousel={mount};
 })();

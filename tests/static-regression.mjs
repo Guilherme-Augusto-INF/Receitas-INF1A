@@ -39,6 +39,14 @@ const teacher=read('public/teacher.js');
 for(const feature of ['teacher_dashboard_snapshot','bulk_assign_students','bulk_group_action','transition_recipe_review','set_checklist_item','save_announcement','soft_delete_recipe','restore_recipe','get_activity_history']){
   check(teacher.includes(feature),`Painel do professor não referencia ${feature}`);
 }
+const carousel=read('public/home-carousel.js');
+check(carousel.includes('AUTO_ADVANCE_MS=5000'),'Carrossel deve passar a cada 5 segundos');
+check(carousel.includes('setTimeout(()=>move(1,false),AUTO_ADVANCE_MS)'),'Rotacao nao reinicia a cada 5 s');
+check(carousel.includes("prev.addEventListener('click',()=>move(-1,true))"),'Seta anterior indisponivel');
+check(carousel.includes("next.addEventListener('click',()=>move(1,true))"),'Proxima seta indisponivel');
+check(carousel.includes('pauseButton.addEventListener'),'Controle de pausa nao encontrado');
+check(read('public/home.js').includes('home-carousel.js?v=4.9.0'),'Modulo de carrossel pode estar em cache');
+check(read('index.html').includes('home.js?v=4.9.0'),'JS da homepage pode estar em cache');
 const collab=read('public/group-collab.js');
 for(const name of [...htmlFiles.filter(name=>name.startsWith('grupo-')),'grupo/index.html']){
   check(read(name).includes('group-collab.js?v=4.5.0'),name+': modulo colaborativo ausente');
