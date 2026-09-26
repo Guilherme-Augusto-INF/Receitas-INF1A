@@ -6,7 +6,7 @@
   'use strict';
   if(window.BioHomeCarousel)return;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
-  const AUTO_ADVANCE_MS=5000;
+  const AUTO_ADVANCE_MS=4000;
   const DEFAULT_GROUPS=[
     ['grupo-1','Grupo 1 — Água'],
     ['grupo-2','Grupo 2 — Vitaminas'],
@@ -187,20 +187,28 @@
     generated.set(key,url);return url;
   }
 
+
+  const FADE_MS=680;
+
   function injectStyle(){
     if(document.getElementById('bio-hero-carousel-css'))return;
-    const sheet=document.createElement('style');sheet.id='bio-hero-carousel-css';
+    const sheet=document.createElement('style');
+    sheet.id='bio-hero-carousel-css';
     sheet.textContent=[
       '.hero.bio-hero-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,.86fr);gap:clamp(14px,3vw,33px);align-items:center;padding:clamp(18px,3vw,28px)}',
       '.bio-hero-text{min-width:0}.hero .bio-hero-text h1{font-size:clamp(1.9rem,3.9vw,3.8rem);max-width:100%;margin:0 0 12px;line-height:1.09}',
       '.hero .bio-hero-text .eyebrow{margin:0 0 14px}.hero .bio-hero-text .hero-copy{margin:0;font-size:clamp(.89rem,1.3vw,1.02rem)}',
-      '.bio-home-carousel{min-width:0;max-width:100%;width:100%;position:relative}.bio-carousel-stage{position:relative;overflow:hidden;border-radius:15px;background:linear-gradient(130deg,#175a59,#39878b);box-shadow:0 12px 26px rgba(0,0,0,.17);height:clamp(185px,27vw,280px)}',
+      '.bio-home-carousel{min-width:0;max-width:100%;width:100%;position:relative}.bio-carousel-stage{position:relative;overflow:hidden;isolation:isolate;border-radius:15px;background:linear-gradient(130deg,#175a59,#39878b);box-shadow:0 12px 26px rgba(0,0,0,.17);height:clamp(185px,27vw,280px)}',
       '.bio-carousel-visual{position:relative;display:block;width:100%;height:100%;text-decoration:none;color:white;overflow:hidden}.bio-carousel-visual:focus-visible{outline:4px solid #e3ffce;outline-offset:-4px}',
-      '.bio-carousel-img{display:block;width:100%;height:100%;object-fit:cover;transition:opacity .28s ease,transform .36s ease}.bio-carousel-stage.changing .bio-carousel-img{opacity:.3;transform:translateX(-9px) scale(1.025)}',
-      '.bio-carousel-caption{position:absolute;inset:auto 0 0;display:flex;flex-direction:column;gap:3px;padding:43px 22px 16px;background:linear-gradient(transparent,rgba(5,29,28,.76));color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}',
+      '.bio-carousel-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.045);transition:opacity .68s cubic-bezier(.22,.61,.36,1),transform 1.35s ease-out;pointer-events:none;will-change:opacity,transform}',
+      '.bio-carousel-img.is-active{opacity:1;transform:scale(1)}',
+      '.bio-carousel-caption{z-index:2;position:absolute;inset:auto 0 0;display:flex;flex-direction:column;gap:3px;padding:43px 22px 19px;background:linear-gradient(transparent,rgba(5,29,28,.78));color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3);transition:opacity .4s ease}',
+      '.bio-carousel-stage.changing .bio-carousel-caption{opacity:.65}',
       '.bio-carousel-caption small{font-size:.76rem;letter-spacing:.1em;font-weight:800;text-transform:uppercase;color:#d8fff1}.bio-carousel-caption strong{font-size:clamp(1.1rem,2vw,1.6rem);line-height:1.12}',
-      '.bio-carousel-prev,.bio-carousel-next{position:absolute;top:47%;z-index:3;width:38px;height:38px;border:1px solid rgba(255,255,255,.65);border-radius:50%;background:rgba(10,35,36,.48);color:#fff;font-size:24px;cursor:pointer;display:grid;place-items:center;transition:background .2s;line-height:1}',
+      '.bio-carousel-prev,.bio-carousel-next{position:absolute;top:47%;z-index:4;width:38px;height:38px;border:1px solid rgba(255,255,255,.65);border-radius:50%;background:rgba(10,35,36,.48);color:#fff;font-size:24px;cursor:pointer;display:grid;place-items:center;transition:background .2s;line-height:1}',
       '.bio-carousel-prev:hover,.bio-carousel-next:hover{background:rgba(10,35,36,.86)}.bio-carousel-prev{left:9px}.bio-carousel-next{right:9px}',
+      '.bio-carousel-timebar{position:absolute;inset:auto 0 0;height:4px;z-index:5;background:rgba(255,255,255,.27);pointer-events:none;overflow:hidden}',
+      '.bio-carousel-timebar-fill{height:100%;width:100%;background:#b3f7d8;box-shadow:0 0 6px rgba(179,247,216,.65);transform:scaleX(0);transform-origin:left;will-change:transform}',
       '.bio-carousel-footer{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 5px 0}.bio-carousel-dot{width:9px;height:9px;padding:0;border:0;border-radius:100px;background:var(--border,#a6a6a6);cursor:pointer;transition:width .25s,background .25s}',
       '.bio-carousel-dot[aria-current=true]{width:25px;background:var(--primary,#4fab87)}.bio-carousel-dot:focus-visible,.bio-carousel-prev:focus-visible,.bio-carousel-next:focus-visible{outline:3px solid var(--focus,#f4efce);outline-offset:3px}',
       '.bio-carousel-controls{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;column-gap:13px;row-gap:2px}',
@@ -209,8 +217,8 @@
       '.bio-carousel-toggle[hidden]{display:none}',
       '.bio-carousel-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}',
       '@media(max-width:640px){.hero.bio-hero-layout{grid-template-columns:1fr}.bio-carousel-stage{height:clamp(210px,51vw,290px)}.hero .bio-hero-text h1{font-size:clamp(2rem,8vw,3rem)}}',
-      '@media(max-width:360px){.bio-carousel-stage{height:210px}.bio-carousel-caption{padding:38px 17px 12px}.bio-carousel-caption strong{font-size:1.05rem}}',
-      '@media(prefers-reduced-motion:reduce){.bio-carousel-img,.bio-carousel-dot,.bio-carousel-prev,.bio-carousel-next{transition:none!important}}'
+      '@media(max-width:360px){.bio-carousel-stage{height:210px}.bio-carousel-caption{padding:38px 17px 18px}.bio-carousel-caption strong{font-size:1.05rem}}',
+      '@media(prefers-reduced-motion:reduce){.bio-carousel-img,.bio-carousel-caption,.bio-carousel-dot,.bio-carousel-prev,.bio-carousel-next{transition:none!important}.bio-carousel-timebar{display:none}}'
     ].join('\n');
     document.head.append(sheet);
   }
@@ -225,7 +233,6 @@
     if(!hero)return null;
     injectStyle();
     const text=el('div','bio-hero-text');
-    // Preserve the existing title and description; JavaScript only moves the nodes.
     while(hero.firstChild)text.appendChild(hero.firstChild);
     const section=el('section','bio-home-carousel');
     section.setAttribute('role','region');
@@ -233,30 +240,74 @@
     section.setAttribute('aria-label','Imagens em PNG dos grupos da atividade de Biologia');
     const stage=el('div','bio-carousel-stage');
     const picture=el('a','bio-carousel-visual');
-    const image=el('img','bio-carousel-img');
-    image.width=640;image.height=400;image.decoding='async';
+    const firstImage=el('img','bio-carousel-img is-active');
+    const secondImage=el('img','bio-carousel-img');
+    for(const img of [firstImage,secondImage]){
+      img.width=640;img.height=400;img.decoding='async';
+    }
+    let activeImage=firstImage,standbyImage=secondImage;
     const caption=el('span','bio-carousel-caption');
     const label=el('small');
-    const title=el('strong');caption.append(label,title);picture.append(image,caption);
-    const prev=el('button','bio-carousel-prev','‹');const next=el('button','bio-carousel-next','›');
-    prev.type=next.type='button';prev.setAttribute('aria-label','Grupo anterior');next.setAttribute('aria-label','Próximo grupo');
-    const dots=el('div','bio-carousel-footer');dots.setAttribute('role','group');dots.setAttribute('aria-label','Selecionar grupo');
+    const title=el('strong');
+    caption.append(label,title);
+    picture.append(firstImage,secondImage,caption);
+    const prev=el('button','bio-carousel-prev','‹');
+    const next=el('button','bio-carousel-next','›');
+    prev.type=next.type='button';
+    prev.setAttribute('aria-label','Grupo anterior');
+    next.setAttribute('aria-label','Próximo grupo');
+    const timebar=el('div','bio-carousel-timebar');
+    const fill=el('div','bio-carousel-timebar-fill');
+    timebar.setAttribute('aria-hidden','true');
+    timebar.append(fill);
+    const dots=el('div','bio-carousel-footer');
+    dots.setAttribute('role','group');
+    dots.setAttribute('aria-label','Selecionar grupo');
     const pauseButton=el('button','bio-carousel-toggle','Pausar');
-    pauseButton.type='button';pauseButton.setAttribute('aria-label','Pausar passagem automática dos grupos');
-    const controls=el('div','bio-carousel-controls');controls.append(dots,pauseButton);
-    const status=el('span','bio-carousel-status');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
-    stage.append(picture,prev,next);section.append(stage,controls,status);
-    hero.classList.add('bio-hero-layout');hero.append(text,section);
+    pauseButton.type='button';
+    pauseButton.setAttribute('aria-label','Pausar passagem automática dos grupos');
+    const controls=el('div','bio-carousel-controls');
+    controls.append(dots,pauseButton);
+    const status=el('span','bio-carousel-status');
+    status.setAttribute('role','status');
+    status.setAttribute('aria-live','polite');
+    stage.append(picture,prev,next,timebar);
+    section.append(stage,controls,status);
+    hero.classList.add('bio-hero-layout');
+    hero.append(text,section);
 
-    let slides=DEFAULT_GROUPS,index=0,timer=null,changeTimer=null,paused=false;
-    let signature='';
-    function canRotate(){return !paused&&!document.hidden&&!reduced.matches&&slides.length>1;}
-    function stop(){clearTimeout(timer);timer=null;}
-    // A contagem comeca quando a imagem termina de aparecer: 5 s completos
-    // para cada grupo, inclusive depois de uma navegacao manual.
-    function restart(){
-      stop();
-      if(canRotate())timer=setTimeout(()=>move(1,false),AUTO_ADVANCE_MS);
+    let slides=DEFAULT_GROUPS,index=0,timer=null,frame=null;
+    let transitionTimer=null,transitionToken=0;
+    let startedAt=null,elapsed=0,paused=false,signature='';
+
+    function canRotate(){
+      return !paused&&!document.hidden&&!reduced.matches&&slides.length>1;
+    }
+    function drawTime(value){
+      fill.style.transform='scaleX('+Math.max(0,Math.min(1,value/AUTO_ADVANCE_MS))+')';
+    }
+    function stopClock(preserve=true){
+      if(startedAt!==null&&preserve){
+        elapsed=Math.min(AUTO_ADVANCE_MS,elapsed+performance.now()-startedAt);
+      }
+      startedAt=null;
+      clearTimeout(timer);timer=null;
+      if(frame!==null){cancelAnimationFrame(frame);frame=null;}
+      if(!preserve)elapsed=0;
+      drawTime(elapsed);
+    }
+    function tick(){
+      frame=null;
+      if(startedAt===null||!canRotate())return;
+      drawTime(elapsed+performance.now()-startedAt);
+      frame=requestAnimationFrame(tick);
+    }
+    function resumeClock(reset=false){
+      stopClock(!reset);
+      if(!canRotate())return;
+      startedAt=performance.now();
+      timer=setTimeout(()=>show(index+1,false),Math.max(1,AUTO_ADVANCE_MS-elapsed));
+      frame=requestAnimationFrame(tick);
     }
     function updatePauseButton(){
       pauseButton.hidden=reduced.matches;
@@ -268,17 +319,20 @@
       dots.replaceChildren();
       slides.forEach((item,i)=>{
         const dot=el('button','bio-carousel-dot');
-        dot.type='button';dot.setAttribute('aria-label','Mostrar '+item.name);
+        dot.type='button';
+        dot.setAttribute('aria-label','Mostrar '+item.name);
         dot.addEventListener('click',()=>show(i,true));
         dots.appendChild(dot);
       });
     }
-    function finish(i,announce){
-      const item=slides[i],number=Number((item.slug.match(/\d+$/)||[])[0])||i+1;
+    function imageFor(item,i){
+      const number=Number((item.slug.match(/\d+$/)||[])[0])||i+1;
       const photo=typeof item.photo_url==='string'&&/\.png(?:[?#]|$)/i.test(item.photo_url)&&
         window.BioUI?.photoUrl?.(item.photo_url);
-      image.src=photo||pngFor(item.slug,number-1);
-      image.alt='Imagem PNG ilustrativa de '+item.name;
+      return photo||pngFor(item.slug,number-1);
+    }
+    function setCaption(item,i,announce){
+      const number=Number((item.slug.match(/\d+$/)||[])[0])||i+1;
       const parts=item.name.split(/\s+[—–-]\s+/);
       label.textContent='GRUPO '+number;
       title.textContent=parts.length>1?parts.slice(1).join(' — '):item.name;
@@ -286,30 +340,76 @@
       picture.setAttribute('aria-label','Visitar '+item.name);
       [...dots.children].forEach((dot,pos)=>dot.setAttribute('aria-current',String(i===pos)));
       if(announce)status.textContent=item.name+' — '+(i+1)+' de '+slides.length;
+    }
+    function cancelTransition(){
+      transitionToken++;
+      clearTimeout(transitionTimer);transitionTimer=null;
+      // Rapid clicks always start from a consistent visible frame.
+      standbyImage.classList.remove('is-active');
+      activeImage.classList.add('is-active');
       stage.classList.remove('changing');
-      restart();
     }
-    function show(target,announce){
+    function show(target,manual){
       if(!slides.length)return;
-      stop();
+      stopClock(!manual);
+      cancelTransition();
       const dest=(target%slides.length+slides.length)%slides.length;
-      clearTimeout(changeTimer);
-      if(dest===index&&image.src){if(announce)status.textContent=slides[dest].name;restart();return;}
+      if(dest===index&&activeImage.src){
+        setCaption(slides[dest],dest,manual);
+        resumeClock(true);return;
+      }
       index=dest;
-      if(image.src&&!reduced.matches){
+      const item=slides[index],src=imageFor(item,index),token=++transitionToken;
+      standbyImage.alt='';
+      standbyImage.src=src;
+      const begin=()=>{
+        if(token!==transitionToken)return;
+        setCaption(item,index,manual);
+        if(reduced.matches){
+          activeImage.src=src;
+          activeImage.alt='Imagem PNG ilustrativa de '+item.name;
+          resumeClock(true);return;
+        }
         stage.classList.add('changing');
-        changeTimer=setTimeout(()=>finish(index,announce),175);
-      }else finish(index,announce);
+        // One frame to register the fully transparent incoming image before the fade.
+        requestAnimationFrame(()=>{
+          if(token!==transitionToken)return;
+          standbyImage.classList.add('is-active');
+          activeImage.classList.remove('is-active');
+          transitionTimer=setTimeout(()=>{
+            if(token!==transitionToken)return;
+            [activeImage,standbyImage]=[standbyImage,activeImage];
+            standbyImage.alt='';
+            activeImage.alt='Imagem PNG ilustrativa de '+item.name;
+            stage.classList.remove('changing');
+            transitionTimer=null;
+            resumeClock(true); // 4 full seconds from the completed fade.
+          },FADE_MS);
+        });
+      };
+      // Existing group photos may load over the network; wait for them before fading.
+      if(typeof standbyImage.decode==='function'){
+        standbyImage.decode().then(begin).catch(()=>{
+          if(token!==transitionToken)return;
+          standbyImage.src=pngFor(item.slug,Number(item.slug.split('-')[1])-1);
+          begin();
+        });
+      }else begin();
     }
-    function move(delta,announce){show(index+delta,announce);}
+    function initialSlide(){
+      const item=slides[index];
+      activeImage.src=imageFor(item,index);
+      activeImage.alt='Imagem PNG ilustrativa de '+item.name;
+      setCaption(item,index,false);
+      resumeClock(true);
+    }
+    function move(delta,manual){show(index+delta,manual);}
     prev.addEventListener('click',()=>move(-1,true));
     next.addEventListener('click',()=>move(1,true));
-    // Passagem automatica continua apos usar as setas, mesmo que elas
-    // mantenham foco ou o cursor esteja sobre o carrossel.
     pauseButton.addEventListener('click',()=>{
       paused=!paused;
       updatePauseButton();
-      restart();
+      if(paused)stopClock(true);else resumeClock(false);
     });
     section.addEventListener('keydown',event=>{
       if(event.key==='ArrowLeft'){event.preventDefault();move(-1,true);}
@@ -320,27 +420,45 @@
     stage.addEventListener('pointerup',event=>{
       if(touchStart===null)return;
       const delta=event.clientX-touchStart;touchStart=null;
-      if(Math.abs(delta)>48){suppressClick=true;move(delta>0?-1:1,true);setTimeout(()=>suppressClick=false,250);}
+      if(Math.abs(delta)>48){
+        suppressClick=true;
+        move(delta>0?-1:1,true);
+        setTimeout(()=>{suppressClick=false;},250);
+      }
     });
     picture.addEventListener('click',event=>{if(suppressClick)event.preventDefault();});
-    document.addEventListener('visibilitychange',restart);
-    if(reduced.addEventListener)reduced.addEventListener('change',()=>{updatePauseButton();restart();});
-
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden)stopClock(true);else resumeClock(false);
+    });
+    if(reduced.addEventListener)reduced.addEventListener('change',()=>{
+      updatePauseButton();
+      if(reduced.matches)stopClock(true);else resumeClock(false);
+    });
     function updateGroups(items){
       if(!Array.isArray(items)||!items.length)return;
       const nextItems=items.filter(item=>item&&typeof item.slug==='string'&&
         /^grupo-\d+$/.test(item.slug)&&typeof item.name==='string')
         .sort((a,b)=>Number(a.slug.split('-')[1])-Number(b.slug.split('-')[1]));
       if(!nextItems.length)return;
-      const nextSig=nextItems.map(g=>g.slug+'|'+g.name+'|'+(g.photo_url||'')).join(';');
+      const nextSig=nextItems.map(item=>item.slug+'|'+item.name+'|'+(item.photo_url||'')).join(';');
       if(nextSig===signature)return;
       const oldSlug=slides[index]?.slug;
       signature=nextSig;slides=nextItems;
       index=Math.max(0,slides.findIndex(item=>item.slug===oldSlug));
-      drawDots();image.removeAttribute('src');finish(index,false);
+      stopClock(false);
+      cancelTransition();
+      drawDots();
+      standbyImage.classList.remove('is-active');
+      activeImage.classList.add('is-active');
+      initialSlide();
     }
-    controller={updateGroups,pause(){paused=true;stop();},resume(){paused=false;restart();}};
-    drawDots();updatePauseButton();finish(0,false);return controller;
+    controller={
+      updateGroups,
+      pause(){paused=true;updatePauseButton();stopClock(true);},
+      resume(){paused=false;updatePauseButton();resumeClock(false);}
+    };
+    drawDots();updatePauseButton();initialSlide();
+    return controller;
   }
   window.BioHomeCarousel={mount};
 })();
