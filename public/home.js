@@ -85,7 +85,6 @@
     if(current.profile?.role==='teacher'){
       const teacher=element('a','btn secondary','Painel');teacher.href='professor/';nav.append(teacher);
     }
-    const logout=element('button','btn danger','Sair');logout.type='button';logout.addEventListener('click',()=>BioAuth.signOut());nav.append(logout);
     if(current.profile?.is_anonymous){
       account.innerHTML='<div class="note"><strong>Acesso anônimo</strong><p>Você pode consultar grupos e receitas. Para editar, entre com uma conta cadastrada e organizada pelo professor.</p></div>';
     }
