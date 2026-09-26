@@ -205,7 +205,7 @@
       '.bio-hero-text{min-width:0}.hero .bio-hero-text h1{font-size:clamp(2rem,4vw,3.8rem);line-height:1.06;max-width:100%;margin:0 0 14px;letter-spacing:-.025em}',
       '.hero .bio-hero-text .eyebrow{margin:0 0 12px}.hero .bio-hero-text .hero-copy{margin:0;font-size:clamp(.94rem,1.28vw,1.06rem)}',
       '.bio-home-carousel{position:relative;min-width:0;width:100%;--slide-dark:#0c5773;--slide-light:#24a5cb}',
-      '.bio-carousel-stage{isolation:isolate;position:relative;overflow:hidden;min-height:230px;height:clamp(230px,30vw,325px);border-radius:18px;background:var(--slide-dark);box-shadow:0 17px 38px rgba(5,30,23,.21),0 2px 6px rgba(5,30,23,.12);border:1px solid rgba(255,255,255,.16);touch-action:pan-y}',
+      '.bio-carousel-stage{isolation:isolate;position:relative;overflow:hidden;min-height:230px;height:clamp(230px,30vw,325px);border-radius:18px;background:linear-gradient(145deg,var(--slide-dark),var(--slide-light));box-shadow:0 17px 38px rgba(5,30,23,.21),0 2px 6px rgba(5,30,23,.12);border:1px solid rgba(255,255,255,.16);touch-action:pan-y}',
       '.bio-carousel-stage::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(circle at var(--pointer-x,50%) var(--pointer-y,40%),rgba(255,255,255,.21),transparent 46%);opacity:.6;transition:opacity .45s}',
       '.bio-carousel-stage::after{content:"";position:absolute;inset:1px;z-index:1;pointer-events:none;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.13)}',
       '.bio-carousel-visual{display:block;position:absolute;inset:0;color:#fff;text-decoration:none;overflow:hidden}.bio-carousel-visual:focus-visible{outline:3px solid #cbffe3;outline-offset:-5px}',
@@ -418,6 +418,8 @@
         animateCaption();
         requestAnimationFrame(()=>{
           if(token!==transitionToken)return;
+          incoming.alt='Imagem do tema '+item.name;
+          active.alt='';
           incoming.classList.add('is-current');
           active.classList.remove('is-current');
           transitionTimer=setTimeout(()=>{
