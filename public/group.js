@@ -69,11 +69,6 @@
     if(!document.hidden&&Date.now()-lastLoadedAt>30000)load(true);
   });
 
-  function groupFormPanel(){
-    if(!group?.form_text||!group?.form_url)return '';
-    return `<section class="panel reveal"><p class="eyebrow">FORMULÁRIO DO TEMA</p><div class="section-head"><div><h2>Atividade obrigatória para toda a turma</h2><p class="muted">Todos os alunos da turma devem responder este formulário para composição da nota.</p></div><span class="status-pill status-review">Obrigatório</span></div><p>${esc(group.form_text).replace(/\n/g,'<br>')}</p><div class="actions"><a class="btn" href="${esc(group.form_url)}" target="_blank" rel="noopener noreferrer">Abrir formulário</a></div></section>`;
-  }
-
   function render(maySeeMembers){
     const isTeacher=profile?.role==='teacher'&&!profile.is_anonymous;
     const belongsToGroup=profile?.group_id===group.id&&!profile?.is_anonymous;
