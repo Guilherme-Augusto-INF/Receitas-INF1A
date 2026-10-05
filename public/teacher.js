@@ -6,6 +6,7 @@
   const reviewText={draft:'Rascunho',submitted:'Enviado para revisão',changes_requested:'Correções solicitadas',approved:'Aprovado'};
   const actionText={profile_updated:'Perfil alterado',student_promoted_to_teacher:'Aluno promovido a professor',students_bulk_moved:'Alunos movidos',group_created:'Grupo criado',group_updated:'Grupo alterado',group_form_updated:'Formulário do grupo atualizado',group_phrase_created:'Frase cadastrada',group_phrase_removed:'Frase removida',checklist_updated:'Checklist atualizado',recipe_submitted:'Receita enviada',recipe_approved:'Receita aprovada',recipe_changes_requested:'Correções solicitadas',teacher_comment_added:'Comentário do professor',classroom_lock:'Edições bloqueadas',classroom_unlock:'Edições liberadas',classroom_finalize:'Atividade finalizada',announcement_saved:'Aviso salvo',announcement_deleted:'Aviso removido',recipe_trashed:'Receita enviada à lixeira',recipe_restored:'Receita restaurada',recipe_purged:'Receita excluída definitivamente',status_changed:'Status alterado',recipe_created:'Receita criada',recipe_updated:'Receita atualizada'};
   let data=null,viewer=null,active='dashboard',historyOffset=0;
+  let refreshPending=false;
   let loading=false,realtimeReady=false,refreshTimer=null,lastLoadedAt=0;
 
   const groupName=id=>data?.groups.find(group=>group.id===id)?.name||'Sem grupo';
@@ -20,23 +21,24 @@
   const setBusy=(button,busy,label='Processando…')=>{if(!button)return;button.disabled=busy;if(busy){button.dataset.label=button.textContent;button.textContent=label}else if(button.dataset.label){button.textContent=button.dataset.label;delete button.dataset.label}};
 
   async function load(keepTab=true){
-    if(loading)return;
+    if(loading){refreshPending=true;return}
     loading=true;
     root.setAttribute('aria-busy','true');
     if(!data)root.innerHTML='<section class="panel loading-state">Carregando central de gerenciamento…</section>';
     else root.querySelector('#teacher-sync')?.replaceChildren('Atualizando…');
     try{
       const me=viewer||await BioAuth.profile();
+      if(me.error)throw me.error;
       if(!me.user){location.href='../login/';return}
-      if(me.error||me.profile?.role!=='teacher'||me.profile?.is_anonymous){root.innerHTML='<section class="panel error-state"><h2>Acesso negado</h2><p>Esta área é exclusiva para professores autorizados.</p><a class="btn secondary" href="../">Voltar</a></section>';return}
+      if(me.profile?.role!=='teacher'||me.profile?.is_anonymous){root.innerHTML='<section class="panel error-state"><h2>Acesso negado</h2><p>Esta área é exclusiva para professores autorizados.</p><a class="btn secondary" href="../">Voltar</a></section>';return}
       viewer=me;
       data=await rpc('teacher_dashboard_snapshot');
       render(keepTab?active:'dashboard');
       lastLoadedAt=Date.now();setupRealtime();
     }catch(error){
-      if(data)toast(BioUI.friendlyError(error),'error');
+      if(data){root.querySelector('#teacher-sync')?.replaceChildren('Falha na atualização; dados anteriores mantidos');toast(BioUI.friendlyError(error),'error')}
       else{root.innerHTML=`<section class="panel error-state"><h2>Não foi possível carregar o painel</h2><p>${esc(BioUI.friendlyError(error))}</p><button id="retry" class="btn">Tentar novamente</button></section>`;document.querySelector('#retry')?.addEventListener('click',()=>load())}
-    }finally{loading=false;root.removeAttribute('aria-busy')}
+    }finally{loading=false;root.removeAttribute('aria-busy');if(refreshPending){refreshPending=false;clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>load(),600)}}
   }
 
   function setupRealtime(){
@@ -51,7 +53,7 @@
     ],({table,payload})=>{
       if(table==='profiles'&&[payload.new?.id,payload.old?.id].includes(viewer?.user?.id))viewer=null;
       clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{
-        if(Date.now()-lastLoadedAt>=900)load();
+        load();
       },600);
     });
   }
@@ -61,13 +63,30 @@
   });
 
   function render(tab){
+    const state=tab===active?captureView():null;
     active=tab;
     const tabs=[['dashboard','Visão geral'],['students','Alunos'],['groups','Grupos'],['reviews','Revisões'],['announcements','Avisos'],['activity','Atividade'],['trash','Lixeira']];
     root.innerHTML=`<div id="panel-status" class="sr-only" aria-live="polite"></div>
       <nav class="teacher-tabs panel" aria-label="Seções da central">${tabs.map(([id,label])=>`<button class="teacher-tab ${id===active?'active':''}" data-tab="${id}" aria-current="${id===active?'page':'false'}">${label}</button>`).join('')}</nav>
       <div class="teacher-toolbar panel"><div><strong>${esc(data.settings.activity_name)}</strong><small>${data.settings.activity_finalized?'Atividade finalizada':data.settings.edits_locked?'Edições bloqueadas':'Edições liberadas'} · <span id="teacher-sync">Atualizado agora</span></small></div><div class="actions"><a class="btn secondary" href="../apresentacao/" target="_blank" rel="noopener">Modo apresentação</a><button class="btn secondary" data-action="export">Exportar CSV</button><button class="btn secondary" data-action="refresh">Atualizar</button></div></div>
       <section id="teacher-content">${section(active)}</section>`;
-    bind();Classroom?.startClock();BioEffects?.observe();
+    bind();restoreView(state);Classroom?.startClock();BioEffects?.observe();
+  }
+  function captureView(){
+    const ids=['student-search','student-group','student-state','bulk-group','bulk-group-action','review-filter','recipe-search'];
+    root.querySelectorAll('#announcement-form input[id], #announcement-form textarea[id], #announcement-form select[id]').forEach(node=>ids.push(node.id));
+    const focus=document.activeElement;
+    return {fields:ids.map(id=>{const node=document.getElementById(id);return node?{id,value:node.value,checked:node.checked}:null}).filter(Boolean),students:selected('.student-check'),groups:selected('.group-check'),focus:root.contains(focus)?focus.id:null,start:focus?.selectionStart,end:focus?.selectionEnd};
+  }
+  function restoreView(state){
+    if(!state)return;
+    state.fields.forEach(({id,value,checked})=>{const node=document.getElementById(id);if(!node)return;node.value=value;if(node.type==='checkbox')node.checked=checked});
+    for(const [selector,ids] of [['.student-check',state.students],['.group-check',state.groups]]){
+      root.querySelectorAll(selector).forEach(node=>{node.checked=ids.includes(node.value);handleChange({target:node})});
+    }
+    if(root.querySelector('#student-search'))filterStudents();
+    if(root.querySelector('#review-filter'))filterReviews();
+    if(state.focus){const field=document.getElementById(state.focus);field?.focus({preventScroll:true});if(typeof state.start==='number'&&field?.setSelectionRange)field.setSelectionRange(state.start,state.end)}
   }
   function section(tab){return({dashboard,students,groups,reviews,announcements,activity,trash}[tab]||dashboard)()}
 
@@ -156,7 +175,7 @@
     if(button.dataset.trash)return simpleAction(button,'soft_delete_recipe',{p_recipe_id:button.dataset.trash},'Receita movida para a lixeira.');if(button.dataset.restore)return simpleAction(button,'restore_recipe',{p_recipe_id:button.dataset.restore},'Receita restaurada.');if(button.dataset.purge)return purgeRecipe(button);
     if(button.dataset.editAnnouncement)return editAnnouncement(button.dataset.editAnnouncement);if(button.dataset.deleteAnnouncement)return deleteAnnouncement(button);
   }
-  async function simpleAction(button,name,args,message){setBusy(button,true);try{await rpc(name,args);toast(message);await load()}catch(error){toast(BioUI.friendlyError(error),'error');setBusy(button,false)}}
+  async function simpleAction(button,name,args,message){setBusy(button,true);try{await rpc(name,args);toast(message);await load()}catch(error){toast(BioUI.friendlyError(error),'error')}finally{setBusy(button,false)}}
   async function classroomControl(button){const label={lock:'bloquear todas as edições',unlock:'liberar as edições',finalize:'FINALIZAR toda a atividade'}[button.dataset.control];if(!confirm(`Confirma ${label}?`))return;await simpleAction(button,'set_classroom_control',{p_action:button.dataset.control},'Controle da atividade atualizado.')}
   async function bulkStudents(button){const ids=selected('.student-check'),group=root.querySelector('#bulk-group').value||null;if(!confirm(`${group?'Mover':'Remover'} ${ids.length} aluno(s) ${group?'para '+groupName(group):'dos grupos'}?`))return;await simpleAction(button,'bulk_assign_students',{p_user_ids:ids,p_group_id:group},`${ids.length} aluno(s) atualizados.`)}
   async function bulkGroups(button){const ids=selected('.group-check'),action=root.querySelector('#bulk-group-action').value;if(!confirm(`Aplicar esta ação a ${ids.length} grupo(s)?`))return;await simpleAction(button,'bulk_group_action',{p_group_ids:ids,p_action:action},'Grupos atualizados.')}
@@ -173,7 +192,7 @@
   async function purgeRecipe(button){const typed=prompt(`Digite EXCLUIR para apagar definitivamente “${button.dataset.name}”:`);if(typed!=='EXCLUIR')return;await simpleAction(button,'purge_recipe',{p_recipe_id:button.dataset.purge},'Receita excluída definitivamente.')}
   function resetAnnouncement(){root.querySelector('#announcement-form').reset();root.querySelector('#announcement-id').value='';root.querySelector('#announcement-title').value='Aviso do professor';root.querySelector('#announcement-published').checked=true}
   function editAnnouncement(id){const a=data.announcements.find(x=>x.id===id);root.querySelector('#announcement-id').value=id;root.querySelector('#announcement-title').value=a.title;root.querySelector('#announcement-message').value=a.message;root.querySelector('#announcement-published').checked=a.is_published;root.querySelector('#announcement-featured').checked=a.is_featured;root.querySelector('#announcement-expires').value=a.expires_at?new Date(a.expires_at).toISOString().slice(0,16):'';root.querySelector('#announcement-title').focus()}
-  async function saveAnnouncement(event){event.preventDefault();const button=event.submitter;setBusy(button,true);try{await rpc('save_announcement',{p_id:root.querySelector('#announcement-id').value||null,p_title:root.querySelector('#announcement-title').value,p_message:root.querySelector('#announcement-message').value,p_published:root.querySelector('#announcement-published').checked,p_featured:root.querySelector('#announcement-featured').checked,p_expires_at:root.querySelector('#announcement-expires').value?new Date(root.querySelector('#announcement-expires').value).toISOString():null});toast('Aviso salvo.');await load()}catch(error){toast(BioUI.friendlyError(error),'error');setBusy(button,false)}}
+  async function saveAnnouncement(event){event.preventDefault();const button=event.submitter;setBusy(button,true);try{await rpc('save_announcement',{p_id:root.querySelector('#announcement-id').value||null,p_title:root.querySelector('#announcement-title').value,p_message:root.querySelector('#announcement-message').value,p_published:root.querySelector('#announcement-published').checked,p_featured:root.querySelector('#announcement-featured').checked,p_expires_at:root.querySelector('#announcement-expires').value?new Date(root.querySelector('#announcement-expires').value).toISOString():null});toast('Aviso salvo.');resetAnnouncement();await load()}catch(error){toast(BioUI.friendlyError(error),'error')}finally{setBusy(button,false)}}
   async function deleteAnnouncement(button){if(!confirm('Mover este aviso para a lixeira interna?'))return;await simpleAction(button,'delete_announcement',{p_id:button.dataset.deleteAnnouncement},'Aviso removido.')}
   async function loadHistory(offset){historyOffset=offset;const box=root.querySelector('#history-list');box.innerHTML='<div class="loading-state">Carregando histórico…</div>';try{const rows=await rpc('get_activity_history',{p_group_id:root.querySelector('#history-group').value||null,p_action:root.querySelector('#history-action').value||null,p_offset:offset,p_limit:25});box.innerHTML=historyList(rows);root.querySelector('[data-action="history-prev"]').disabled=offset===0;root.querySelector('[data-action="history-next"]').disabled=rows.length<25}catch(error){box.innerHTML=`<p class="error-text">${esc(BioUI.friendlyError(error))}</p>`}}
   function exportCsv(){
@@ -183,3 +202,4 @@
   }
   load(false);
 })();
+

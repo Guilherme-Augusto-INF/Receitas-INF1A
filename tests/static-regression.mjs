@@ -31,7 +31,7 @@ check(!home.includes("element('button','btn danger','Sair')"),'A tela inicial ai
 check(!home.includes("BioAuth.signOut()"),'A tela inicial ainda oferece logout fora do perfil');
 check(profile.includes('id="logout"') && profile.includes('BioAuth.signOut()'),'Logout ausente do perfil');
 check(/\.logout-wrap\{[^}]*justify-content:flex-end/.test(css),'Logout do perfil nao esta alinhado a direita');
-check(read('index.html').includes('home.js?v=4.11.0'),'Home com script em cache antigo');
+check(read('index.html').includes('home.js?v=4.12.0'),'Home com script em cache antigo');
 check(read('index.html').includes('styles.css?v=4.7.0'),'Home com CSS em cache antigo');
 check(css.includes('#nav > .btn.danger{display:none!important}'),'Logout antigo da home nao possui bloqueio visual de seguranca');
 check(read('perfil/index.html').includes('styles.css?v=4.6.0'),'Perfil com estilos em cache antigo');
@@ -53,8 +53,7 @@ check(carousel.includes('requestAnimationFrame(tick)'),'Barra de tempo nao atual
 check(carousel.includes("prev.addEventListener('click',()=>show(index-1,true,-1))"),'Seta anterior indisponivel');
 check(carousel.includes("next.addEventListener('click',()=>show(index+1,true,1))"),'Proxima seta indisponivel');
 check(carousel.includes('pauseButton.addEventListener'),'Controle de pausa nao encontrado');
-check(read('public/home.js').includes('home-carousel.js?v=4.11.0'),'Modulo de carrossel pode estar em cache');
-check(read('index.html').includes('home.js?v=4.10.0'),'JS da homepage pode estar em cache');
+check(read('public/home.js').includes('home-carousel.js?v=4.12.0'),'Modulo de carrossel pode estar em cache');
 const collab=read('public/group-collab.js');
 for(const name of [...htmlFiles.filter(name=>name.startsWith('grupo-')),'grupo/index.html']){
   check(read(name).includes('group-collab.js?v=4.5.0'),name+': modulo colaborativo ausente');
@@ -87,3 +86,4 @@ for(const required of ['group_phrases','enable row level security','add_group_ph
 }
 if(failures.length){console.error(failures.join('\n'));process.exit(1)}
 console.log(`PASS: ${htmlFiles.length} páginas e metadados estáticos validados.`);
+

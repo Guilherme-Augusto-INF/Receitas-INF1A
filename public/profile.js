@@ -5,7 +5,7 @@
   async function load(){
     root.innerHTML='<section class="panel loading-state">Carregando perfil…</section>';
     const me=await BioAuth.profile();
-    if(!me.user){location.href='../login/';return}
+    if(!me.user&&!me.error){location.href='../login/';return}
     if(me.error||!me.profile){
       root.innerHTML='<section class="panel error-state"><strong>Não foi possível carregar seu perfil.</strong><p>'+esc(BioUI.friendlyError(me.error,'Seu perfil ainda não está disponível.'))+'</p><button class="btn" id="retry">Tentar novamente</button></section>';
       document.querySelector('#retry')?.addEventListener('click',load);return;
@@ -42,3 +42,4 @@
   }
   load();
 })();
+
