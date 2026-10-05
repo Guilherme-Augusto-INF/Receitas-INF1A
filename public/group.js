@@ -14,6 +14,7 @@
   };
   const reviewLabels={draft:'Rascunho',submitted:'Enviado para revisão',changes_requested:'Correções solicitadas',approved:'Aprovado'};
   let group=null,recipes=[],profile=null,members=[],settings={edits_locked:false,activity_finalized:false};
+  let refreshPending=false;
   let realtimeReady=false,refreshTimer=null,loading=false,lastLoadedAt=0;
 
   function showRefreshError(error){
@@ -24,7 +25,7 @@
   }
 
   async function load(preserve=false){
-    if(loading)return;
+    if(loading){refreshPending=true;return}
     loading=true;
     if(!preserve)root.innerHTML='<section class="panel loading-state">Carregando grupo…</section>';
     try{
@@ -43,7 +44,7 @@
       if(preserve){showRefreshError(error);return}
       root.innerHTML='<section class="panel error-state"><strong>Não foi possível carregar este grupo.</strong><p>'+esc(BioUI.friendlyError(error))+'</p><button class="btn" id="retry">Tentar novamente</button></section>';
       document.querySelector('#retry')?.addEventListener('click',()=>load(false));
-    }finally{loading=false}
+    }finally{loading=false;if(refreshPending){refreshPending=false;clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>load(true),450)}}
   }
 
   function setupRealtime(){
@@ -60,7 +61,7 @@
       if(table==='group_phrases'){GroupCollab.refreshPhrases();return}
       if(table==='announcements')return;
       clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{
-        if(Date.now()-lastLoadedAt>=800)load(true);
+        load(true);
       },450);
     });
   }
@@ -222,3 +223,4 @@
   }
   load();
 })();
+

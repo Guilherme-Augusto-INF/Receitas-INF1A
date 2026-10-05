@@ -255,6 +255,7 @@
     const text=el('div','bio-hero-text');
     while(hero.firstChild)text.appendChild(hero.firstChild);
     const region=el('section','bio-home-carousel');
+    region.hidden=true;
     region.setAttribute('role','region');
     region.setAttribute('aria-roledescription','carrossel');
     region.setAttribute('aria-label','Explore as imagens dos grupos de Biologia');
@@ -300,7 +301,7 @@
     let pointerX=.5,pointerY=.4;
 
     function canPlay(){
-      return !paused&&!document.hidden&&!reduced.matches&&slides.length>1;
+      return !region.hidden&&!paused&&!document.hidden&&!reduced.matches&&slides.length>1;
     }
     function progress(value){
       timelineFill.style.transform='scaleX('+clamp(value/AUTO_ADVANCE_MS,0,1)+')';
@@ -507,6 +508,7 @@
         .sort((a,b)=>Number(a.slug.split('-')[1])-Number(b.slug.split('-')[1]));
       if(!next.length)return;
       const nextSig=next.map(item=>item.slug+'|'+item.name+'|'+(item.photo_url||'')).join(';');
+      region.hidden=false;
       if(nextSig===signature)return;
       const previous=slides[index]?.slug;
       signature=nextSig;slides=next;

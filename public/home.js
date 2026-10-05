@@ -10,9 +10,10 @@
     review:['🟡','Em revisão'],
     completed:['🟢','Finalizado']
   };
+  let refreshPending=false;
   let loading=false,refreshTimer=null,lastLoadedAt=0;
   // Carrega uma unica vez o carrossel visual sem introduzir HTML ou CSS estatico.
-  const carouselUrl=new URL('home-carousel.js?v=4.11.0',document.currentScript?.src||new URL('public/home.js',location.href)).href;
+  const carouselUrl=new URL('home-carousel.js?v=4.12.0',document.currentScript?.src||new URL('public/home.js',location.href)).href;
   let carousel=null,carouselData=null;
   function mountCarousel(){
     const loader=document.createElement('script');
@@ -76,7 +77,7 @@
     lastUpdate.textContent='Falha na atualização';
   }
   async function render(){
-    if(loading)return;
+    if(loading){refreshPending=true;return}
     loading=true;
     try{
       const result=await BioUI.withTimeout(sb.rpc('get_group_overview'));
@@ -88,7 +89,7 @@
       lastUpdate.textContent='Atualizado às '+new Intl.DateTimeFormat('pt-BR',{
         timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
       }).format(new Date());
-    }catch(error){renderError(error)}finally{loading=false}
+    }catch(error){renderError(error)}finally{loading=false;if(refreshPending){refreshPending=false;scheduleRefresh()}}
   }
   async function renderAccount(){
     const current=await BioAuth.profile();
@@ -120,3 +121,4 @@
   });
   mountCarousel();renderAccount();render();
 })();
+
