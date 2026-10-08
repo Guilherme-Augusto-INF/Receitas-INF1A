@@ -122,3 +122,7 @@ html.dark .top{background:rgba(12,23,19,.96)}html.dark .field input,html.dark .f
 /* Defesa: nunca exibir um logout antigo na navegacao da pagina inicial.
    A unica saida do sistema continua no perfil. */
 #nav > .btn.danger{display:none!important}
+
+/* Respeitar o atributo hidden mesmo em cartões com display:grid. */
+#teacher-app .person-card[hidden],
+#teacher-app .review-card[hidden] { display: none !important; }
